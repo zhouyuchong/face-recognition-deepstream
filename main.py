@@ -54,7 +54,6 @@ TILED_OUTPUT_HEIGHT=720
 GST_CAPS_FEATURES_NVMM="memory:NVMM"
 OSD_PROCESS_MODE= 0
 OSD_DISPLAY_TEXT= 1
-pgie_classes_str= ["Vehicle", "TwoWheeler", "Person","RoadSign"]
 FACE_FINISHED = []
 FACE_ALL = []
 face_count = 0
@@ -65,7 +64,6 @@ def crop_object(image, obj_meta):
     left = int(rect_params.left)
     width = int(rect_params.width)
     height = int(rect_params.height)
-    # obj_name = pgie_classes_str[obj_meta.class_id]
 
     crop_img = image[top:top+height, left:left+width]
 	
@@ -80,8 +78,6 @@ def queue_tee_pgie_2_src_pad_buffer_probe(pad,info,u_data):
     batch_meta = pyds.gst_buffer_get_nvds_batch_meta(hash(gst_buffer))
     l_frame = batch_meta.frame_meta_list
     while l_frame is not None:
-        # 该帧是否会被传递到retina face 分支信号
-        Yolo2Rface_pass_signal = False
         try:
             # Note that l_frame.data needs a cast to pyds.NvDsFrameMeta
             # The casting is done by pyds.NvDsFrameMeta.cast()
@@ -102,22 +98,15 @@ def queue_tee_pgie_2_src_pad_buffer_probe(pad,info,u_data):
                 obj_meta=pyds.NvDsObjectMeta.cast(l_obj.data)
             except StopIteration:
                 break
-            # 遍历该帧中所有的检测物体，如果为人员且为第一次追踪到，则传递信号为真
             if obj_meta.class_id == 0:
                 if obj_meta.object_id not in FACE_ALL:
                     FACE_ALL.append(obj_meta.object_id)
-                    Yolo2Rface_pass_signal = True
         
             try: 
                 l_obj=l_obj.next
             except StopIteration:
                 break
-        
-        '''if Yolo2Rface_pass_signal is False:
-            return Gst.PadProbeReturn.DROP
-        if Yolo2Rface_pass_signal is True:
-            print("total person tracker id:", tracker_count)
-            print("frame", frame_number, "---->retinaface")'''
+
         try:
             l_frame=l_frame.next
         except StopIteration:
@@ -269,7 +258,6 @@ def tgie_src_pad_buffer_probe(pad,info,u_data):
                     global face_count
                     face_count += 1
                     normal_array = res / norm
-                    print("arcface run:", face_count)
                    
                     try:
                         l_user=l_user.next
@@ -286,6 +274,7 @@ def tgie_src_pad_buffer_probe(pad,info,u_data):
             break
 
     return Gst.PadProbeReturn.OK
+
 # tiler_sink_pad_buffer_probe  will extract metadata received on OSD sink pad
 # and update params for drawing rectangle, object information etc.
 def tiler_src_pad_buffer_probe(pad,info,u_data):
@@ -440,13 +429,12 @@ def main(args):
         videorate_name = Gst.ElementFactory.make("videorate", videorate_name)
         if not videorate_name:
             sys.stderr.write(" Unable to create videorate \n")
-        videorate_name.set_property("max-rate", 10)
+        videorate_name.set_property("max-rate", 10)  # control the max frame rate
         videorate_name.set_property("drop-only", 1)
         pipeline.add(videorate_name)
 
         source_bin.link(capname)
         capname.link(videorate_name)
-        # video_convertor_name.link(videorate_name)
         padname="sink_%u" %i
         sinkpad= streammux.get_request_pad(padname) 
         if not sinkpad:
