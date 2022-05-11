@@ -54,7 +54,7 @@
 
 [property]
 gpu-id=0
-gie-unique-id=1
+gie-unique-id=3
 model-engine-file=../../models/arcface/arcface-r100.engine
 batch-size=1
 net-scale-factor=0.0078125
@@ -62,7 +62,9 @@ offsets=127.5;127.5;127.5
 force-implicit-batch-dim=1
 model-color-format=0
 network-mode=2
-process-mode=1
+operate-on-gie-id=2
+operate-on-class-ids=0
+process-mode=
 network-type=1
 output-tensor-meta=1
 classifier-async-mode=0
