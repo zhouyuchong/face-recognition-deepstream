@@ -310,19 +310,22 @@ def main(args):
             sys.stderr.write(" Unable to create transform \n")
 
     print("Creating EGLSink \n")
-    # sink = Gst.ElementFactory.make("fakesink", "nvvideo-renderer")
-    sink = Gst.ElementFactory.make("nveglglessink", "nvvideo-renderer")
+    sink = Gst.ElementFactory.make("fakesink", "nvvideo-renderer")
+    # sink = Gst.ElementFactory.make("nveglglessink", "nvvideo-renderer")
     
     if not sink:
         sys.stderr.write(" Unable to create egl sink \n")
 
+    streammux.set_property('attach-sys-ts', "TRUE")
     if is_live:
         print("Atleast one of the sources is live")
         streammux.set_property('live-source', 1)
+        streammux.set_property('attach-sys-ts', "FALSE")
 
     streammux.set_property('width', 1920)
     streammux.set_property('height', 1080)
     streammux.set_property('batch-size', number_sources)
+    
     streammux.set_property('batched-push-timeout', 4000000)
 
     pgie.set_property('config-file-path', "config_yolov5.txt")
