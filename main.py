@@ -20,7 +20,6 @@
 import sys
 sys.path.append('../')
 import gi
-import configparser
 gi.require_version('Gst', '1.0')
 from gi.repository import GObject, Gst
 from gi.repository import GLib
@@ -28,14 +27,16 @@ from ctypes import *
 import sys
 import math
 import numpy as np
-
-from common.is_aarch_64 import is_aarch64
-from common.bus_call import bus_call
-from common.FPS import GETFPS
+import configparser
 import ctypes
 ctypes.cdll.LoadLibrary('/opt/nvidia/deepstream/deepstream/sources/pythonapps/models/yolov5/yolov5s/libYoloV5Decoder.so')
 ctypes.cdll.LoadLibrary('/opt/nvidia/deepstream/deepstream/sources/pythonapps/models/retinaface/libRetinafaceDecoder.so')
 ctypes.cdll.LoadLibrary('/opt/nvidia/deepstream/deepstream/sources/pythonapps/models/arcface/libArcFaceDecoder.so')
+
+
+from common.is_aarch_64 import is_aarch64
+from common.bus_call import bus_call
+from common.FPS import GETFPS
 
 import pyds
 
@@ -56,12 +57,19 @@ PGIE = 1
 SGIE = 2
 TGIE = 3
 
+# FORMAT:
+# PERSON_DETECTED[track_id]:[[obj_meta of body], [obj_meta of face], [arcface_face_feature]]
 PERSON_DETECTED = {}
+FACE_USED = []
 fps_streams={}
 
 def tiler_sink_pad_buffer_probe(pad,info,u_data):
+    '''
+    This function extract person and face detected by yolo and retinaface, then connect them by the coordinates
+    
+    There is a dict PERSON_DETECTED stored all the information.
+    '''
     frame_number=0
-    num_rects=0
     gst_buffer = info.get_buffer()
     if not gst_buffer:
         print("Unable to get GstBuffer ")
@@ -83,7 +91,9 @@ def tiler_sink_pad_buffer_probe(pad,info,u_data):
         except StopIteration:
             break
         frame_number=frame_meta.frame_num
+        frame_flag = True
         num_rects = frame_meta.num_obj_meta
+        # firstly walk through to add all person/body detected by yolo to dict
         l_obj=frame_meta.obj_meta_list
         while l_obj is not None:
             try:
@@ -93,13 +103,16 @@ def tiler_sink_pad_buffer_probe(pad,info,u_data):
             except StopIteration:
                 break
             if obj_meta.unique_component_id==PGIE and obj_meta.class_id==0 and (obj_meta.object_id in PERSON_DETECTED)==False:
-                # print("new person {} detected in frame {}.".format(obj_meta.object_id, frame_number))
-                PERSON_DETECTED[obj_meta.object_id] = [None, None]
+                # add to dict
+                # PERSON_DETECTED[obj_meta.object_id]=[[obj_meta.rect_params.left, obj_meta.rect_params.top, obj_meta.rect_params.width, obj_meta.rect_params.height], None, None]
+                PERSON_DETECTED[obj_meta.object_id]=[obj_meta, None, None]
+
             try: 
                 l_obj=l_obj.next
             except StopIteration:
                 break
-            
+        
+        # the second time, walk through to connect face and body    
         l_obj=frame_meta.obj_meta_list
         while l_obj is not None:
             try:
@@ -108,46 +121,53 @@ def tiler_sink_pad_buffer_probe(pad,info,u_data):
                 obj_meta=pyds.NvDsObjectMeta.cast(l_obj.data)
             except StopIteration:
                 break
-            if obj_meta.unique_component_id==SGIE and obj_meta.class_id==0:
-                # print(obj_meta.object_id, "  ", obj_meta.parent.object_id)
-                if obj_meta.parent.object_id in PERSON_DETECTED:
-                    if PERSON_DETECTED[obj_meta.parent.object_id][0] is None:
-                        print("face of person-{} detected in frame{}".format(obj_meta.parent.object_id, frame_number))
-                        PERSON_DETECTED[obj_meta.parent.object_id][0] = frame_number
-                        
-                        l_user = obj_meta.obj_user_meta_list
-                        while l_user is not None:
-                            try:
-                                # Note that l_user.data needs a cast to pyds.NvDsUserMeta
-                                # The casting is done by pyds.NvDsUserMeta.cast()
-                                # The casting also keeps ownership of the underlying memory
-                                # in the C code, so the Python garbage collector will leave
-                                # it alone
-                                user_meta=pyds.NvDsUserMeta.cast(l_user.data) 
-                            except StopIteration:
-                                break
+            if obj_meta.unique_component_id==SGIE and obj_meta.class_id==0 and (obj_meta.object_id in FACE_USED)==False:
+                for key in PERSON_DETECTED:
+                    # if this person doesn't have a face
+                    if PERSON_DETECTED[key][1] is None:
+                        if compare_coordinates(obj_meta, PERSON_DETECTED[key][0]) == True:
+                            if frame_flag:
+                                print("========================== FRAME {} ============================".format(frame_number))
+                                frame_flag = False
+                            print("face {} of person-{} detected".format(obj_meta.object_id, key))
+                            PERSON_DETECTED[key][1] = obj_meta
+                            FACE_USED.append(obj_meta.object_id)
                             
-                            # Check data type of user_meta 
-                            if(user_meta and user_meta.base_meta.meta_type==pyds.NvDsMetaType.NVDSINFER_TENSOR_OUTPUT_META): 
+                            # then extract arcface data from user-meta-data
+                            l_user = obj_meta.obj_user_meta_list
+                            while l_user is not None:
                                 try:
-                                    tensor_meta = pyds.NvDsInferTensorMeta.cast(user_meta.user_meta_data)
+                                    # Note that l_user.data needs a cast to pyds.NvDsUserMeta
+                                    # The casting is done by pyds.NvDsUserMeta.cast()
+                                    # The casting also keeps ownership of the underlying memory
+                                    # in the C code, so the Python garbage collector will leave
+                                    # it alone
+                                    user_meta=pyds.NvDsUserMeta.cast(l_user.data) 
                                 except StopIteration:
                                     break
                                 
-                                layer = pyds.get_nvds_LayerInfo(tensor_meta, 0)
-                                output = []
-                                for i in range(512):
-                                    output.append(pyds.get_detections(layer.buffer, i))
-                                
-                                res = np.reshape(output,(512,-1))
-                                norm=np.linalg.norm(res)
-                                normal_array = res / norm
-                                PERSON_DETECTED[obj_meta.parent.object_id][1] = normal_array
-                                print("get facial features of person {}".format(obj_meta.parent.object_id))
-                                try:
-                                    l_user=l_user.next
-                                except StopIteration:
-                                    break 
+                                # Check data type of user_meta 
+                                if(user_meta and user_meta.base_meta.meta_type==pyds.NvDsMetaType.NVDSINFER_TENSOR_OUTPUT_META): 
+                                    try:
+                                        tensor_meta = pyds.NvDsInferTensorMeta.cast(user_meta.user_meta_data)
+                                    except StopIteration:
+                                        break
+                                    
+                                    layer = pyds.get_nvds_LayerInfo(tensor_meta, 0)
+                                    output = []
+                                    for i in range(512):
+                                        output.append(pyds.get_detections(layer.buffer, i))
+                                    
+                                    res = np.reshape(output,(512,-1))
+                                    norm=np.linalg.norm(res)
+                                    normal_array = res / norm
+                                    PERSON_DETECTED[key][2] = normal_array
+                                    # print("get facial features of person {}".format(key))
+                                    try:
+                                        l_user=l_user.next
+                                    except StopIteration:
+                                        break 
+                            break
                                    
             try: 
                 l_obj=l_obj.next
@@ -161,8 +181,9 @@ def tiler_sink_pad_buffer_probe(pad,info,u_data):
     return Gst.PadProbeReturn.OK
 
 def osd_sink_pad_buffer_probe(pad,info,u_data):
-    frame_number=0
-    num_rects=0
+    '''
+    This probe to monitor fps of streams
+    '''
     gst_buffer = info.get_buffer()
     if not gst_buffer:
         print("Unable to get GstBuffer ")
@@ -183,7 +204,6 @@ def osd_sink_pad_buffer_probe(pad,info,u_data):
             frame_meta = pyds.NvDsFrameMeta.cast(l_frame.data)
         except StopIteration:
             break
-    
         l_obj=frame_meta.obj_meta_list
         while l_obj is not None:
             try:
@@ -192,13 +212,22 @@ def osd_sink_pad_buffer_probe(pad,info,u_data):
                 obj_meta=pyds.NvDsObjectMeta.cast(l_obj.data)
             except StopIteration:
                 break
-            # obj_meta.rect_params.border_color.set(0.0, 0.0, 1.0, 0.0)
-            # print(obj_meta.class_id," ", obj_meta.confidence)
+                
+            if obj_meta.unique_component_id==PGIE and (obj_meta.object_id in PERSON_DETECTED):
+                if PERSON_DETECTED[obj_meta.object_id][2] is not None:
+                    obj_meta.rect_params.has_bg_color=1
+                    obj_meta.rect_params.bg_color.set(0.0, 0.5, 0.0, 0.3)
+                    obj_meta.rect_params.border_width=5
+                    obj_meta.rect_params.border_color.set(1.0, 1.0, 1.0, 1.0)
+
+            if obj_meta.unique_component_id==SGIE:
+                obj_meta.rect_params.has_bg_color=1
+                obj_meta.rect_params.bg_color.set(0.6, 0.0, 0.0, 0.5)
+                obj_meta.rect_params.border_width=0
             try: 
                 l_obj=l_obj.next
             except StopIteration:
                 break
-
         # Get frame rate through this probe
         fps_streams["stream{0}".format(frame_meta.pad_index)].get_fps()
         try:
@@ -310,8 +339,8 @@ def main(args):
             sys.stderr.write(" Unable to create transform \n")
 
     print("Creating EGLSink \n")
-    sink = Gst.ElementFactory.make("fakesink", "nvvideo-renderer")
-    # sink = Gst.ElementFactory.make("nveglglessink", "nvvideo-renderer")
+    # sink = Gst.ElementFactory.make("fakesink", "nvvideo-renderer")
+    sink = Gst.ElementFactory.make("nveglglessink", "nvvideo-renderer")
     
     if not sink:
         sys.stderr.write(" Unable to create egl sink \n")
@@ -386,10 +415,10 @@ def main(args):
     streammux.link(queue1)
     queue1.link(pgie)
     pgie.link(queue2)
-    queue2.link(tracker)
-    tracker.link(queue3)
-    queue3.link(sgie)
-    sgie.link(queue4)
+    queue2.link(sgie)
+    sgie.link(queue3)
+    queue3.link(tracker)
+    tracker.link(queue4)
     queue4.link(tgie)
     tgie.link(queue5)
     queue5.link(tiler)
@@ -507,6 +536,31 @@ def create_source_bin(index,uri):
         sys.stderr.write(" Failed to add ghost pad in source bin \n")
         return None
     return nbin
+
+def compare_coordinates(face, body):
+    '''
+    This function compares the coordinates between face and body
+
+    args: 
+
+    + face: NvDsObjectMeta
+
+    + body: NvDsObjectMeta
+
+    returns:
+
+    + True if the face belongs to the body
+    
+    + otherwise False
+
+    '''
+    face_coor = [face.rect_params.left, face.rect_params.top, face.rect_params.width, face.rect_params.height]
+    body_coor = [body.rect_params.left, body.rect_params.top, body.rect_params.width, body.rect_params.height]
+    if face_coor[0]>(body_coor[0] + body_coor[2]*0.33) and (face_coor[0] + face_coor[2])<(body_coor[0] + body_coor[2]) \
+        and face_coor[1]>(body_coor[1] - face_coor[3]/2) and (face_coor[1] + face_coor[3])<(body_coor[1] + body_coor[3]* 0.5):
+        return True
+    else:
+        return False
 
 if __name__ == '__main__':
     sys.exit(main(sys.argv))
