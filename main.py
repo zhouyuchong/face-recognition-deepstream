@@ -34,7 +34,9 @@ from common.bus_call import bus_call
 from common.FPS import GETFPS
 import ctypes
 ctypes.cdll.LoadLibrary('/opt/nvidia/deepstream/deepstream/sources/pythonapps/models/yolov5/yolov5s/libYoloV5Decoder.so')
+# ctypes.cdll.LoadLibrary('/opt/nvidia/deepstream/deepstream/sources/pythonapps/models/retinaface/libdecodeplugin.so')
 ctypes.cdll.LoadLibrary('/opt/nvidia/deepstream/deepstream/sources/pythonapps/models/retinaface/libRetinafaceDecoder.so')
+
 ctypes.cdll.LoadLibrary('/opt/nvidia/deepstream/deepstream/sources/pythonapps/models/arcface/libArcFaceDecoder.so')
 
 import pyds
@@ -412,13 +414,15 @@ def main(args):
     if not tiler_sink_pad:
         sys.stderr.write(" Unable to get sink pad of tiler \n")
     else:
-        tiler_sink_pad.add_probe(Gst.PadProbeType.BUFFER, tiler_sink_pad_buffer_probe, 0)
+        i = 1
+        # tiler_sink_pad.add_probe(Gst.PadProbeType.BUFFER, tiler_sink_pad_buffer_probe, 0)
 
     osd_sink_pad=nvosd.get_static_pad("sink")
     if not osd_sink_pad:
         sys.stderr.write(" Unable to get sink pad of osd \n")
     else:
-        osd_sink_pad.add_probe(Gst.PadProbeType.BUFFER, osd_sink_pad_buffer_probe, 0)
+        i = 2
+        # osd_sink_pad.add_probe(Gst.PadProbeType.BUFFER, osd_sink_pad_buffer_probe, 0)
 
     # List the sources
     print("Now playing...")

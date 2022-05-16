@@ -3,7 +3,7 @@
 gpu-id=0
 #0=RGB, 1=BGR
 model-color-format=0
-model-engine-file=../../models/retinaface/retina_r50.engine
+model-engine-file=../../models/retinaface/retina_r50_3060s.engine
 labelfile-path=../../models/retinaface/labels.txt
 process-mode=2
 ## 0=FP32, 1=INT8, 2=FP16 mode
@@ -18,7 +18,7 @@ output-blob-names=prob
 ## 0=Group Rectangles, 1=DBSCAN, 2=NMS, 3= DBSCAN+NMS Hybrid, 4 = None(No clustering)
 #cluster-mode=2
 maintain-aspect-ratio=1
-# batch-size=1
+# batch-size=60
 # workaround for getting topk detection
 num-detected-classes=2
 output-tensor-meta=0
