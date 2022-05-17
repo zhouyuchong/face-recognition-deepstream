@@ -210,6 +210,63 @@ def osd_sink_pad_buffer_probe(pad,info,u_data):
 
     return Gst.PadProbeReturn.OK
 
+def sgie_sink_pad_buffer_probe(pad,info,u_data):
+    '''
+    This probe to monitor fps of streams
+    '''
+    gst_buffer = info.get_buffer()
+    if not gst_buffer:
+        print("Unable to get GstBuffer ")
+        return
+
+    # Retrieve batch metadata from the gst_buffer
+    # Note that pyds.gst_buffer_get_nvds_batch_meta() expects the
+    # C address of gst_buffer as input, which is obtained with hash(gst_buffer)
+    batch_meta = pyds.gst_buffer_get_nvds_batch_meta(hash(gst_buffer))
+    l_frame = batch_meta.frame_meta_list
+    while l_frame is not None:
+        try:
+            # Note that l_frame.data needs a cast to pyds.NvDsFrameMeta
+            # The casting is done by pyds.NvDsFrameMeta.cast()
+            # The casting also keeps ownership of the underlying memory
+            # in the C code, so the Python garbage collector will leave
+            # it alone.
+            frame_meta = pyds.NvDsFrameMeta.cast(l_frame.data)
+        except StopIteration:
+            break
+        l_obj=frame_meta.obj_meta_list
+        while l_obj is not None:
+            remove_flag = 0
+            try:
+                # Casting l_obj.data to pyds.NvDsObjectMeta
+                #obj_meta=pyds.glist_get_nvds_object_meta(l_obj.data)
+                obj_meta=pyds.NvDsObjectMeta.cast(l_obj.data)
+            except StopIteration:
+                break
+            #print(PERSON_DETECTED)
+            if obj_meta.unique_component_id==PGIE:
+            #if obj_meta.unique_component_id==PGIE and (obj_meta.object_id in PERSON_DETECTED) and (PERSON_DETECTED[obj_meta.object_id][1] is not None):
+                print("already detected")
+                remove_flag = 1
+                #print("remove {} frome {}".format(obj_meta.object_id, frame_meta.frame_num))
+                
+                
+                
+            try: 
+                l_obj=l_obj.next
+                if remove_flag:
+                    pyds.nvds_remove_obj_meta_from_frame(frame_meta, obj_meta)
+            except StopIteration:
+                break
+        # Get frame rate through this probe
+        fps_streams["stream{0}".format(frame_meta.pad_index)].get_fps()
+        try:
+            l_frame=l_frame.next
+        except StopIteration:
+            break
+
+    return Gst.PadProbeReturn.OK
+
 
 def main(args):
     # Check input arguments
@@ -415,14 +472,22 @@ def main(args):
         sys.stderr.write(" Unable to get sink pad of tiler \n")
     else:
         i = 1
-        # tiler_sink_pad.add_probe(Gst.PadProbeType.BUFFER, tiler_sink_pad_buffer_probe, 0)
+        #tiler_sink_pad.add_probe(Gst.PadProbeType.BUFFER, tiler_sink_pad_buffer_probe, 0)
+    
+    sgie_sink_pad = queue3.get_static_pad("sink")
+    if not sgie_sink_pad:
+        sys.stderr.write(" Unable to get sink pad of tiler \n")
+    else:
+        i = 1
+        sgie_sink_pad.add_probe(Gst.PadProbeType.BUFFER, sgie_sink_pad_buffer_probe, 0)
+
 
     osd_sink_pad=nvosd.get_static_pad("sink")
     if not osd_sink_pad:
         sys.stderr.write(" Unable to get sink pad of osd \n")
     else:
         i = 2
-        # osd_sink_pad.add_probe(Gst.PadProbeType.BUFFER, osd_sink_pad_buffer_probe, 0)
+        osd_sink_pad.add_probe(Gst.PadProbeType.BUFFER, osd_sink_pad_buffer_probe, 0)
 
     # List the sources
     print("Now playing...")
