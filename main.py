@@ -28,6 +28,7 @@ from ctypes import *
 import sys
 import math
 import numpy as np
+import time
 
 from common.is_aarch_64 import is_aarch64
 from common.bus_call import bus_call
@@ -52,7 +53,7 @@ TILED_OUTPUT_WIDTH=1280
 TILED_OUTPUT_HEIGHT=720
 GST_CAPS_FEATURES_NVMM="memory:NVMM"
 OSD_PROCESS_MODE= 0
-OSD_DISPLAY_TEXT= 1
+OSD_DISPLAY_TEXT= 0
 
 PGIE = 1
 SGIE = 2
@@ -60,6 +61,13 @@ TGIE = 3
 
 PERSON_DETECTED = {}
 fps_streams={}
+RFACE_POOL=[]
+RFACE_POOL_MAX = 2
+start_time=0
+end_time=0
+is_first=True
+
+
 
 def tiler_sink_pad_buffer_probe(pad,info,u_data):
     frame_number=0
@@ -212,20 +220,27 @@ def osd_sink_pad_buffer_probe(pad,info,u_data):
 
 def sgie_sink_pad_buffer_probe(pad,info,u_data):
     '''
-    This probe to monitor fps of streams
     '''
+    global RFACE_POOL_MAX, RFACE_POOL
+    global start_time, end_time
+    global is_first
     gst_buffer = info.get_buffer()
     if not gst_buffer:
         print("Unable to get GstBuffer ")
         return
-
+    
     # Retrieve batch metadata from the gst_buffer
     # Note that pyds.gst_buffer_get_nvds_batch_meta() expects the
     # C address of gst_buffer as input, which is obtained with hash(gst_buffer)
     batch_meta = pyds.gst_buffer_get_nvds_batch_meta(hash(gst_buffer))
     l_frame = batch_meta.frame_meta_list
     while l_frame is not None:
-        person_max_count = 0
+        if is_first==True:
+            start_time=time.time()
+            is_first = False
+        if (end_time - start_time)>=1:
+            RFACE_POOL.clear()
+            start_time = end_time
         try:
             # Note that l_frame.data needs a cast to pyds.NvDsFrameMeta
             # The casting is done by pyds.NvDsFrameMeta.cast()
@@ -233,36 +248,43 @@ def sgie_sink_pad_buffer_probe(pad,info,u_data):
             # in the C code, so the Python garbage collector will leave
             # it alone.
             frame_meta = pyds.NvDsFrameMeta.cast(l_frame.data)
+            # print(start_time, "  ", end_time)
         except StopIteration:
             break
         l_obj=frame_meta.obj_meta_list
         while l_obj is not None:
-            remove_flag = 0
+            remove_flag = 1
             try:
                 # Casting l_obj.data to pyds.NvDsObjectMeta
                 obj_meta=pyds.NvDsObjectMeta.cast(l_obj.data)
             except StopIteration:
                 break
-                        
-            if obj_meta.unique_component_id==PGIE and (obj_meta.object_id in PERSON_DETECTED) and (PERSON_DETECTED[obj_meta.object_id][1] is not None):
+            #if obj_meta.class_id!=0:
+                #remove_flag = 0         
+            if obj_meta.class_id==0 and (obj_meta.object_id in PERSON_DETECTED) and (PERSON_DETECTED[obj_meta.object_id][0] is not None):
+                if obj_meta.object_id in RFACE_POOL:
+                    RFACE_POOL.remove(obj_meta.object_id)
                 remove_flag = 1
                 
-            if obj_meta.unique_component_id==PGIE and (obj_meta.object_id in PERSON_DETECTED)==False:
-                remove_flag = 0
-                person_max_count = person_max_count + 1
-
-            if person_max_count >= 3:
-                remove_flag = 1
-
+            if obj_meta.class_id==0 and (obj_meta.object_id in PERSON_DETECTED)==False:
+                if obj_meta.object_id in RFACE_POOL:
+                    remove_flag = 1
+                if obj_meta.object_id not in RFACE_POOL:
+                    if len(RFACE_POOL) >= RFACE_POOL_MAX:
+                        remove_flag = 1
+                    else:
+                        RFACE_POOL.append(obj_meta.object_id)
+                        #print(RFACE_POOL)
+                        remove_flag = 0 
             try:
                 l_obj=l_obj.next
                 if remove_flag:
                     pyds.nvds_remove_obj_meta_from_frame(frame_meta, obj_meta)
             except StopIteration:
                 break
-        # Get frame rate through this probe
-        fps_streams["stream{0}".format(frame_meta.pad_index)].get_fps()
+            
         try:
+            end_time = time.time()
             l_frame=l_frame.next
         except StopIteration:
             break
@@ -278,6 +300,7 @@ def main(args):
 
     for i in range(0,len(args)-1):
         fps_streams["stream{0}".format(i)]=GETFPS(i)
+    print(fps_streams)
     number_sources=len(args)-1
 
     # Standard GStreamer initialization
@@ -372,7 +395,7 @@ def main(args):
 
 
     print("Creating EGLSink \n")
-    # sink = Gst.ElementFactory.make("fakesink", "nvvideo-renderer")
+    #sink = Gst.ElementFactory.make("fakevideosink", "nvvideo-renderer")
     sink = Gst.ElementFactory.make("nveglglessink", "nvvideo-renderer")
     
     if not sink:
@@ -403,6 +426,7 @@ def main(args):
     tiler.set_property("width", TILED_OUTPUT_WIDTH)
     tiler.set_property("height", TILED_OUTPUT_HEIGHT)
     sink.set_property("qos",0)
+    sink.set_property("sync",0)
 
     #Set properties of tracker
     config = configparser.ConfigParser()
@@ -474,19 +498,22 @@ def main(args):
     if not tiler_sink_pad:
         sys.stderr.write(" Unable to get sink pad of tiler \n")
     else:
+        i =1
         tiler_sink_pad.add_probe(Gst.PadProbeType.BUFFER, tiler_sink_pad_buffer_probe, 0)
     
     sgie_sink_pad = queue3.get_static_pad("sink")
     if not sgie_sink_pad:
         sys.stderr.write(" Unable to get sink pad of tiler \n")
     else:
+        i=2
         sgie_sink_pad.add_probe(Gst.PadProbeType.BUFFER, sgie_sink_pad_buffer_probe, 0)
 
 
-    osd_sink_pad=nvosd.get_static_pad("sink")
+    osd_sink_pad=pgie.get_static_pad("sink")
     if not osd_sink_pad:
         sys.stderr.write(" Unable to get sink pad of osd \n")
     else:
+        i=3
         osd_sink_pad.add_probe(Gst.PadProbeType.BUFFER, osd_sink_pad_buffer_probe, 0)
 
     # List the sources
