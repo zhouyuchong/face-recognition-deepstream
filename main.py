@@ -225,6 +225,7 @@ def sgie_sink_pad_buffer_probe(pad,info,u_data):
     batch_meta = pyds.gst_buffer_get_nvds_batch_meta(hash(gst_buffer))
     l_frame = batch_meta.frame_meta_list
     while l_frame is not None:
+        person_max_count = 0
         try:
             # Note that l_frame.data needs a cast to pyds.NvDsFrameMeta
             # The casting is done by pyds.NvDsFrameMeta.cast()
@@ -239,20 +240,21 @@ def sgie_sink_pad_buffer_probe(pad,info,u_data):
             remove_flag = 0
             try:
                 # Casting l_obj.data to pyds.NvDsObjectMeta
-                #obj_meta=pyds.glist_get_nvds_object_meta(l_obj.data)
                 obj_meta=pyds.NvDsObjectMeta.cast(l_obj.data)
             except StopIteration:
                 break
-            #print(PERSON_DETECTED)
-            if obj_meta.unique_component_id==PGIE:
-            #if obj_meta.unique_component_id==PGIE and (obj_meta.object_id in PERSON_DETECTED) and (PERSON_DETECTED[obj_meta.object_id][1] is not None):
-                print("already detected")
+                        
+            if obj_meta.unique_component_id==PGIE and (obj_meta.object_id in PERSON_DETECTED) and (PERSON_DETECTED[obj_meta.object_id][1] is not None):
                 remove_flag = 1
-                #print("remove {} frome {}".format(obj_meta.object_id, frame_meta.frame_num))
                 
-                
-                
-            try: 
+            if obj_meta.unique_component_id==PGIE and (obj_meta.object_id in PERSON_DETECTED)==False:
+                remove_flag = 0
+                person_max_count = person_max_count + 1
+
+            if person_max_count >= 3:
+                remove_flag = 1
+
+            try:
                 l_obj=l_obj.next
                 if remove_flag:
                     pyds.nvds_remove_obj_meta_from_frame(frame_meta, obj_meta)
@@ -368,6 +370,7 @@ def main(args):
         if not transform:
             sys.stderr.write(" Unable to create transform \n")
 
+
     print("Creating EGLSink \n")
     # sink = Gst.ElementFactory.make("fakesink", "nvvideo-renderer")
     sink = Gst.ElementFactory.make("nveglglessink", "nvvideo-renderer")
@@ -471,14 +474,12 @@ def main(args):
     if not tiler_sink_pad:
         sys.stderr.write(" Unable to get sink pad of tiler \n")
     else:
-        i = 1
-        #tiler_sink_pad.add_probe(Gst.PadProbeType.BUFFER, tiler_sink_pad_buffer_probe, 0)
+        tiler_sink_pad.add_probe(Gst.PadProbeType.BUFFER, tiler_sink_pad_buffer_probe, 0)
     
     sgie_sink_pad = queue3.get_static_pad("sink")
     if not sgie_sink_pad:
         sys.stderr.write(" Unable to get sink pad of tiler \n")
     else:
-        i = 1
         sgie_sink_pad.add_probe(Gst.PadProbeType.BUFFER, sgie_sink_pad_buffer_probe, 0)
 
 
@@ -486,7 +487,6 @@ def main(args):
     if not osd_sink_pad:
         sys.stderr.write(" Unable to get sink pad of osd \n")
     else:
-        i = 2
         osd_sink_pad.add_probe(Gst.PadProbeType.BUFFER, osd_sink_pad_buffer_probe, 0)
 
     # List the sources
