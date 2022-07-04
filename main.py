@@ -29,14 +29,14 @@ import math
 import numpy as np
 import configparser
 import ctypes
-ctypes.cdll.LoadLibrary('/opt/nvidia/deepstream/deepstream/sources/pythonapps/models/yolov5/yolov5s/libYoloV5Decoder.so')
-ctypes.cdll.LoadLibrary('/opt/nvidia/deepstream/deepstream/sources/pythonapps/models/retinaface/libRetinafaceDecoder.so')
-ctypes.cdll.LoadLibrary('/opt/nvidia/deepstream/deepstream/sources/pythonapps/models/arcface/libArcFaceDecoder.so')
+ctypes.cdll.LoadLibrary('/opt/models/yolov5/yolov5s/libYoloV5Decoder.so')
+ctypes.cdll.LoadLibrary('/opt/models/retinaface/libplugin_rface.so')
+ctypes.cdll.LoadLibrary('/opt/models/arcface/libplugin_aface.so')
 
 
-from common.is_aarch_64 import is_aarch64
-from common.bus_call import bus_call
-from common.FPS import GETFPS
+from apps.common.is_aarch_64 import is_aarch64
+from apps.common.bus_call import bus_call
+from apps.common.FPS import GETFPS
 
 import pyds
 
@@ -162,7 +162,8 @@ def tiler_sink_pad_buffer_probe(pad,info,u_data):
                                     norm=np.linalg.norm(res)
                                     normal_array = res / norm
                                     PERSON_DETECTED[key][2] = normal_array
-                                    # print("get facial features of person {}".format(key))
+                                    print("get facial features of person {}".format(key))
+                                    #print(normal_array)
                                     try:
                                         l_user=l_user.next
                                     except StopIteration:
