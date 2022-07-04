@@ -55,7 +55,7 @@
 [property]
 gpu-id=0
 gie-unique-id=3
-model-engine-file=../../models/arcface/arcface-r100.engine
+model-engine-file=/opt/models/arcface/arcface-r50.engine
 batch-size=1
 net-scale-factor=0.0078125
 offsets=127.5;127.5;127.5

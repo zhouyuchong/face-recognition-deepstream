@@ -30,15 +30,13 @@ import math
 import numpy as np
 import time
 
-from common.is_aarch_64 import is_aarch64
-from common.bus_call import bus_call
-from common.FPS import GETFPS
+from apps.common.is_aarch_64 import is_aarch64
+from apps.common.bus_call import bus_call
+from apps.common.FPS import GETFPS
 import ctypes
-ctypes.cdll.LoadLibrary('/opt/nvidia/deepstream/deepstream/sources/pythonapps/models/yolov5/yolov5s/libYoloV5Decoder.so')
-# ctypes.cdll.LoadLibrary('/opt/nvidia/deepstream/deepstream/sources/pythonapps/models/retinaface/libdecodeplugin.so')
-ctypes.cdll.LoadLibrary('/opt/nvidia/deepstream/deepstream/sources/pythonapps/models/retinaface/libRetinafaceDecoder.so')
-
-ctypes.cdll.LoadLibrary('/opt/nvidia/deepstream/deepstream/sources/pythonapps/models/arcface/libArcFaceDecoder.so')
+ctypes.cdll.LoadLibrary('/opt/models/yolov5/yolov5s/libYoloV5Decoder.so')
+ctypes.cdll.LoadLibrary('/opt/models/retinaface/libplugin_rface.so')
+ctypes.cdll.LoadLibrary('/opt/models/arcface/libplugin_aface.so')
 
 import pyds
 
