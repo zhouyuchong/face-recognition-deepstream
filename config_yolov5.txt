@@ -40,6 +40,8 @@ gpu-id=0
 net-scale-factor=0.0039215697906911373
 #0=RGB, 1=BGR
 model-color-format=0
+# custom-network-config=yolov3-tiny.cfg
+# model-file=yolov3-tiny.weights
 model-engine-file=/opt/models/yolov5/yolov5s/yolov5s.engine
 labelfile-path=/opt/models/yolov5/yolov5s/labels.txt
 process-mode=1
@@ -48,14 +50,15 @@ network-mode=2
 num-detected-classes=80
 gie-unique-id=1
 network-type=0
+#is-classifier=0
 output-blob-names=prob
 ## 0=Group Rectangles, 1=DBSCAN, 2=NMS, 3= DBSCAN+NMS Hybrid, 4 = None(No clustering)
 #cluster-mode=2
 maintain-aspect-ratio=1
 parse-bbox-func-name=NvDsInferParseCustomYoloV5
 custom-lib-path=/opt/models/yolov5/yolov5s/nvdsinfer_custom_impl_Yolo/libnvdsinfer_custom_impl_Yolo.so
-interval=0
-batch-size=1
+interval=1
+batch-size=4
 
 [class-attrs-all]
 nms-iou-threshold=0.5
