@@ -60,7 +60,7 @@ TGIE = 3
 PERSON_DETECTED = {}
 fps_streams={}
 RFACE_POOL=[]
-RFACE_POOL_MAX = 2
+RFACE_POOL_MAX = 4
 start_time=0
 end_time=0
 is_first=True
@@ -258,13 +258,15 @@ def sgie_sink_pad_buffer_probe(pad,info,u_data):
             except StopIteration:
                 break
             #if obj_meta.class_id!=0:
-                #remove_flag = 0         
-            if obj_meta.class_id==0 and (obj_meta.object_id in PERSON_DETECTED) and (PERSON_DETECTED[obj_meta.object_id][0] is not None):
+                #remove_flag = 0      
+            if obj_meta.class_id ==0 and obj_meta.unique_component_id == PGIE and (obj_meta.rect_params.width < 120 or obj_meta.rect_params.height < 120):
+                remove_flag =1
+            elif obj_meta.class_id==0 and (obj_meta.object_id in PERSON_DETECTED) and (PERSON_DETECTED[obj_meta.object_id][0] is not None):
                 if obj_meta.object_id in RFACE_POOL:
                     RFACE_POOL.remove(obj_meta.object_id)
                 remove_flag = 1
                 
-            if obj_meta.class_id==0 and (obj_meta.object_id in PERSON_DETECTED)==False:
+            elif obj_meta.class_id==0 and (obj_meta.object_id in PERSON_DETECTED)==False:
                 if obj_meta.object_id in RFACE_POOL:
                     remove_flag = 1
                 if obj_meta.object_id not in RFACE_POOL:
@@ -424,7 +426,7 @@ def main(args):
     tiler.set_property("width", TILED_OUTPUT_WIDTH)
     tiler.set_property("height", TILED_OUTPUT_HEIGHT)
     sink.set_property("qos",0)
-    sink.set_property("sync",0)
+    sink.set_property("sync",1)
 
     #Set properties of tracker
     config = configparser.ConfigParser()

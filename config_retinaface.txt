@@ -13,6 +13,10 @@ gie-unique-id=2
 network-type=0
 #is-classifier=0
 
+input-object-min-width=100
+input-object-min-height=120
+
+
 operate-on-gie-id=1
 operate-on-class-ids=0
 output-blob-names=prob
