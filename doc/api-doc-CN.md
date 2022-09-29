@@ -53,11 +53,6 @@ app.start()
 + 构造参数：
   + id, 字符串， 用户输入的资源名称
   + uri， 视频地址
-+ 示例：
-```
-id = "hx-camera-01"
-uri = "rtsp://admin:sh123456@192.168.1.237:554/h264/ch1/main/av_stream"
-src = Stream(id, uri)
-```
+
 
 
