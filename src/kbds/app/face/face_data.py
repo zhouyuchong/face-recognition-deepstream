@@ -9,7 +9,6 @@ import cv2
 from requests import patch
 import kbds.util.constant as constant
 import kbds.util.picConv as convertor
-from kbds.util.fdfs_util.fdfs_util import FastDfsUtil
 
 
 MAX_FACE_IN_POOL = 40
@@ -168,7 +167,6 @@ class Facethread(threading.Thread):
 
     def save_bg_to_local(self, id, face):
         # print("save background {} image to local.".format(id))
-        # temp = FastDfsUtil()
         bg = np.array(face.get_bg_image(), copy=True, order='C')
         bg = cv2.cvtColor(bg, cv2.COLOR_RGBA2BGRA)
         path = 'images/background'
@@ -176,45 +174,24 @@ class Facethread(threading.Thread):
         if not os.path.exists(path):
             os.makedirs(path)
         cv2.imwrite(img_path, bg)
-        # temp.upload_by_filename(img_path)
         return True
 
     def save_face_to_local(self, id, face):
-        # print("save face {} to local.".format(id))
-        # path = 'save/face'
-        # if not os.path.exists(path):
-        #     os.makedirs(path)
         img_path = "images/origin/face-{}.png".format(id)
         os.path.exists("images/origin/face-{}.png".format(id))
-        # frame_copy = face.get_bbox()
-        # img_path = "save/face/{0}-{1}-{2}.jpg".format(id, face.get_source_id(), face.get_ts())
-        # cv2.imwrite(img_path, frame_copy)
         name = "face-{}.png".format(id)
         face.set_image_name(name)
-        # face.set_face_image_link(img_path)
-        save_fdfs = FastDfsUtil()      
-        ret = save_fdfs.upload_by_filename(img_path)
-        save_p = ret["Remote file_id"].decode('utf-8')
-        # save_p = "test"
-        print(save_p)
-        face.set_face_image_link(save_p)          
+        face.set_face_image_link(img_path)
         return True
 
     def save_face_feature_to_local(self, id, face):   
-        # print("save feature {} to local.".format(id))
         ff = face.get_face_feature()
         ff_path = "images/face_feature/face-{0}-{1}.npy".format(id, face.get_ts())
-        # face.set_ff_link(ff_path)
         path = 'images/face_feature'
         if not os.path.exists(path):
             os.makedirs(path)
         np.save(ff_path, ff)
-
-        save_fdfs = FastDfsUtil()      
-        ret = save_fdfs.upload_by_filename(ff_path)
-        save_p = ret["Remote file_id"].decode('utf-8')
-        # save_p = "test"
-        face.set_ff_link(save_p)
+        face.set_ff_link(ff_path)
         
         return True
     
