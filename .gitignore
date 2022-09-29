@@ -1,3 +1,7 @@
 images/*
 /yolo_0
 *.png
+*.pyc
+__pycache__
+*.jpg
+*.png
