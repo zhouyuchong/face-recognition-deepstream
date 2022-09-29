@@ -68,7 +68,6 @@ network-type=100
 output-tensor-meta=1
 symmetric-padding=1
 classifier-async-mode=0
-# output-blob-names=prob
 operate-on-gie-id=1
 operate-on-class-ids=0
 input-object-min-width=0

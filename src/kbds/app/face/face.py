@@ -213,12 +213,7 @@ class DSFace(DSPipeline):
         self.queue4.link(self.filter)
         self.filter.link(self.queue5)
         self.queue5.link(self.sgie)
-        self.sgie.link(self.queue6)
-        # self.queue6.link(self.tiler)
-        # self.tiler.link(self.queue7)
-        # self.queue6.link(self.nvosd)
-        # self.nvosd.link(self.sink)    )
-        # self.nvosd.link(self.queue8)    
+        self.sgie.link(self.queue6) 
         self.queue6.link(self.tee)
         self.queue_msg.link(msgconv)
         msgconv.link(msgbroker)
@@ -517,43 +512,6 @@ class DSFaceProbe(DSFace):
                 
    
             
-            try:
-                l_frame=l_frame.next
-            except StopIteration:
-                break
-                
-        return Gst.PadProbeReturn.OK	
-
-    def sgie_sink_pad_buffer_probe_2(pad,info,u_data):
-        """
-        Probe to extract facial feature from user-meta data. 
-        
-        Should be after arcface.
-        """
-        global face_pool
-        frame_number=0
-        gst_buffer = info.get_buffer()
-        if not gst_buffer:
-            print("Unable to get GstBuffer ")
-            return
-
-        # Retrieve batch metadata from the gst_buffer
-        # Note that pyds.gst_buffer_get_nvds_batch_meta() expects the
-        # C address of gst_buffer as input, which is obtained with hash(gst_buffer)
-        batch_meta = pyds.gst_buffer_get_nvds_batch_meta(hash(gst_buffer))    
-        l_frame = batch_meta.frame_meta_list
-        while l_frame is not None:
-            try:
-                # Note that l_frame.data needs a cast to pyds.NvDsFrameMeta
-                # The casting is done by pyds.glist_get_nvds_frame_meta()
-                # The casting also keeps ownership of the underlying memory
-                # in the C code, so the Python garbage collector will leave
-                # it alone.
-                frame_meta = pyds.NvDsFrameMeta.cast(l_frame.data)
-            except StopIteration:
-                break
-            
-          
             try:
                 l_frame=l_frame.next
             except StopIteration:
