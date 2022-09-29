@@ -46,6 +46,16 @@ python3 test/face_test_demo.py
 ```
 Notice that only support RTSP stream and Gstreamer format.
 
+### 5 - check result
+images before and after alignment will be stored in images.
+
+
+modify codes in test/cal_sim.py. replace with your own face-feature npy file.
+```
+python3 test/cal_sim.py
+```
+it will outputs all score.
+
 
 ## References
 + [wang-xinyu/tensorrtx](https://github.com/wang-xinyu/tensorrtx)
