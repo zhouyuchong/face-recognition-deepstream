@@ -1,5 +1,5 @@
 ################################################################################
-# SPDX-FileCopyrightText: Copyright (c) 2019-2021 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2018-2021 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,18 +15,39 @@
 # limitations under the License.
 ################################################################################
 
-# Mandatory properties for the tracker:
-#   tracker-width
-#   tracker-height: needs to be multiple of 6 for NvDCF
-#   gpu-id
-#   ll-lib-file: path to low-level tracker lib
-#   ll-config-file: required for NvDCF, optional for KLT and IOU
-#
-[tracker]
-tracker-width=640
-tracker-height=384
-gpu-id=0
-ll-lib-file=/opt/nvidia/deepstream/deepstream/lib/libnvds_nvmultiobjecttracker.so
-ll-config-file=config_tracker_NvDCF_perf.yml
-#enable-past-frame=1
-enable-batch-process=1
+[sensor0]
+enable=1
+type=Camera
+id=CAMERA_ID
+location=45.293701447;-75.8303914499;48.1557479338
+description="Entrance of Garage Right Lane"
+coordinate=5.2;10.1;11.2
+
+[place0]
+enable=1
+id=1
+type=garage
+name=XYZ
+location=30.32;-40.55;100.0
+coordinate=1.0;2.0;3.0
+place-sub-field1=walsh
+place-sub-field2=lane1
+place-sub-field3=P2
+
+[place1]
+enable=1
+id=1
+type=garage
+name=XYZ
+location=28.47;47.46;1.53
+coordinate=1.0;2.0;3.0
+place-sub-field1="C-76-2"
+place-sub-field2="LEV/EV/CP/ADA"
+place-sub-field3=P2
+
+[analytics0]
+enable=1
+id=XYZ
+description="Vehicle Detection and License Plate Recognition"
+source=OpenALR
+version=1.0

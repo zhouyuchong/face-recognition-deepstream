@@ -54,24 +54,26 @@
 
 [property]
 gpu-id=0
-gie-unique-id=3
-model-engine-file=/opt/models/arcface/arcface-r50.engine
-batch-size=1
+gie-unique-id=2
+# model-engine-file=/opt/models/arcface/arcface-r50.engine
+model-engine-file=/opt/models/arcface/arcface_new.engine
+# batch-size=1
 net-scale-factor=0.0078125
 offsets=127.5;127.5;127.5
 force-implicit-batch-dim=1
 model-color-format=0
 network-mode=2
-operate-on-gie-id=2
-operate-on-class-ids=0
 process-mode=2
-network-type=1
+network-type=100
 output-tensor-meta=1
+symmetric-padding=1
 classifier-async-mode=0
-output-blob-names=prob
-output-tensor-meta=1
+# output-blob-names=prob
+operate-on-gie-id=1
+operate-on-class-ids=0
+input-object-min-width=0
+input-object-min-height=0
+
 alignment=1
 user-meta=1
-maintain-aspect-ratio=1
-#symmetric-padding=1
 
