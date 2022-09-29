@@ -1,5 +1,5 @@
 # Face recognition with Deepstream 6.1
-This is a object detection and face recognition app build on Deepstream.
+This is a face detection and recognition app build on Deepstream.
 
 ## Requirements
 + Deepstream 6.0+
