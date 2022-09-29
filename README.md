@@ -25,12 +25,22 @@ there should be a face alignment before arcface. Use a custom-gst-nvinfer to pre
 [Demo custom-gst-nvinfer](https://github.com/zhouyuchong/gst-nvinfer-custom)
 
 ## Usage
+### 1 - compile retinaface parse function
+```
+cd models/retinaface
+make
+```
+### 2 - modify all path in config and codes
++ all path in src/config/face/
++ line 24 in src/kbds/app/face.py
 
-Start kafka service before everything. Then set "ip;port;topic" in codes.
+### 3 - Start kafka service before everything. 
+Then set "ip;port;topic" in codes.
 e.g.
 ```
 DSFace("localhost;9092;deepstream")
 ```
+### 4 - start app
 ```
 python3 test/face_test_demo.py
 ```
