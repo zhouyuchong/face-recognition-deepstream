@@ -26,7 +26,11 @@ there should be a face alignment before arcface. Use a custom-gst-nvinfer to pre
 
 ## Usage
 
-
+Start kafka service before everything. Then set "ip;port;topic" in codes.
+e.g.
+```
+DSFace("localhost;9092;deepstream")
+```
 ```
 python3 test/face_test_demo.py
 ```

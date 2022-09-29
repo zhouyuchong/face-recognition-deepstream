@@ -342,7 +342,6 @@ class DSPipeline(Singleton, abc.ABC):
         src.rt_ctx = None
         self.srcm.clean_index(src)
         ret, msg, src = self.srcm.delete(id)    
-        print(self.is_first_src)
         if not ret:
             raise Exception("srcm delete source failed")
 
