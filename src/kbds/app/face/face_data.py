@@ -9,16 +9,17 @@ import cv2
 from requests import patch
 import kbds.util.constant as constant
 import kbds.util.picConv as convertor
+from kbds.util.fdfs_util.fdfs_util import FastDfsUtil
 
 
 MAX_FACE_IN_POOL = 40
-FACE_POOL = {}
 TPOOL = set()
 
 class FaceFeature():
     def __init__(self):
         self.link = ""
         self.state = constant.FaceState.Init
+        self.bbox = None
 
     def set_frame_num(self, frame_num):
         self.frame_num = frame_num
@@ -83,40 +84,102 @@ class FaceFeature():
         return self.ff_link
 
 class FacePool():
+    _instance = None
+    lock = threading.Lock()
+
+    def __new__(cls, *args, **kwargs):
+        if cls._instance:
+            return cls._instance
+        else:
+            with cls.lock:
+                cls._instance = super().__new__(cls)
+                return cls._instance
+
     def __init__(self):
-        self.uninfer_face = 0
+        self.uninfered_face_num = 0
+        self.pool = dict()
 
     def add(self, id, face):
-        FACE_POOL[id] = face
+        self.pool[id] = face
         return True, "success"
 
     def id_exist(self, id):
-        if id in FACE_POOL:
+        if id in self.pool:
             return True
         return False
 
     def counter(self, op):
         if op == constant.CounterOp.UP:
-            self.uninfer_face = self.uninfer_face + 1
+            self.uninfered_face_num = self.uninfered_face_num + 1
         if op == constant.CounterOp.DOWN:
-            self.uninfer_face = self.uninfer_face - 1
+            self.uninfered_face_num = self.uninfered_face_num - 1
             
 
     def check_full(self):
-        if self.uninfer_face >= MAX_FACE_IN_POOL:
+        if self.uninfered_face_num >= MAX_FACE_IN_POOL:
             return True
         else:
             return False
             
     def get_face_by_id(self, id):
-        return FACE_POOL[id]
+        return self.pool[id]
 
     def pop_face_by_id(self, id):
         # print("pop id ", id)
-        return FACE_POOL.pop(id)
+        return self.pool.pop(id)
 
-    def get_pool(self):
-        return FACE_POOL
+    def get_ids_in_pool(self):
+        return self.pool.keys()
+
+    def check_msg_status(self, id):
+        if self.pool[id].get_state() == constant.FaceState.State3:
+            self.pool[id].set_state(constant.FaceState.State4)
+            return self.pool[id].get_face_image_link(), self.pool[id].get_ff_link(), self.pool[id].get_image_name(), self.pool[id].get_ts(), self.pool[id].get_source_id()
+
+    def check_and_save(self):
+        for id, face in self.pool.items():
+            if face.get_state() == constant.FaceState.State2:
+                ret2 = self.save_face_to_local(id=id, face=face)
+                ret3 = self.save_face_feature_to_local(id=id, face=face)
+                if ret2 and ret3:
+                    face.set_state(constant.FaceState.State3)
+
+    def save_face_to_local(self, id, face):
+        img_path = "images/origin/face-{}.png".format(id)
+        if os.path.exists("images/origin/face-{}.png".format(id)):
+            # frame_copy = face.get_bbox()
+            # img_path = "save/face/{0}-{1}-{2}.jpg".format(id, face.get_source_id(), face.get_ts())
+            # cv2.imwrite(img_path, frame_copy)
+            name = "face-{}.png".format(id)
+            face.set_image_name(name)
+            # face.set_face_image_link(img_path)
+            save_fdfs = FastDfsUtil()      
+            ret = save_fdfs.upload_by_filename(img_path)
+            save_p = ret["Remote file_id"].decode('utf-8')
+            # save_p = "test"
+            # print(save_p)
+            face.set_face_image_link(save_p)          
+            return True
+        else:
+            return False
+
+    def save_face_feature_to_local(self, id, face):   
+        # print("save feature {} to local.".format(id))
+        ff = face.get_face_feature()
+        ff_path = "images/face_feature/face-{0}-{1}.npy".format(id, face.get_ts())
+        path = 'images/face_feature'
+        if not os.path.exists(path):
+            os.makedirs(path)
+        np.save(ff_path, ff)
+
+        save_fdfs = FastDfsUtil()      
+        ret = save_fdfs.upload_by_filename(ff_path)
+        save_p = ret["Remote file_id"].decode('utf-8')
+        # save_p = "test"
+        face.set_ff_link(save_p)
+        
+        return True
+
  
 class TerminatePool():
     def add(self, id):
@@ -135,9 +198,9 @@ class Facethread(threading.Thread):
         self._lock = threading.Lock()
         self._timeout = 30
         self.num_in_pool = 0
+        self.face_pool = FacePool()
         self.create_save_dir()
         
-
     def create_save_dir(self):
         path = "images/origin"
         if not os.path.exists(path):
@@ -145,57 +208,9 @@ class Facethread(threading.Thread):
         path = "images/aligned"
         if not os.path.exists(path):
             os.makedirs(path)
-
-    def check_new(self):
-        if not self._lock.acquire(timeout=self._timeout):
-            print("Fail to acquire lock, maybe busy")
-            return False
-
-        for i in FACE_POOL.copy():
-            if i in FACE_POOL.copy():
-                if FACE_POOL.copy()[i].get_state() == constant.FaceState.State2:
-                    # print(FACE_POOL)
-                    # ret1 = self.save_bg_to_local(id=i, face=FACE_POOL[i])
-                    ret2 = self.save_face_to_local(id=i, face=FACE_POOL[i])
-                    ret3 = self.save_face_feature_to_local(id=i, face=FACE_POOL[i])
-                    
-                    FACE_POOL[i].set_state(constant.FaceState.State3)
- 
-        self._lock.release()
           
-    #== save functions=============================================================================
 
-    def save_bg_to_local(self, id, face):
-        # print("save background {} image to local.".format(id))
-        bg = np.array(face.get_bg_image(), copy=True, order='C')
-        bg = cv2.cvtColor(bg, cv2.COLOR_RGBA2BGRA)
-        path = 'images/background'
-        img_path = "images/background/backgrond-of-face-{0}.png".format(id, face.get_ts())
-        if not os.path.exists(path):
-            os.makedirs(path)
-        cv2.imwrite(img_path, bg)
-        return True
-
-    def save_face_to_local(self, id, face):
-        img_path = "images/origin/face-{}.png".format(id)
-        os.path.exists("images/origin/face-{}.png".format(id))
-        name = "face-{}.png".format(id)
-        face.set_image_name(name)
-        face.set_face_image_link(img_path)
-        return True
-
-    def save_face_feature_to_local(self, id, face):   
-        ff = face.get_face_feature()
-        ff_path = "images/face_feature/face-{0}-{1}.npy".format(id, face.get_ts())
-        path = 'images/face_feature'
-        if not os.path.exists(path):
-            os.makedirs(path)
-        np.save(ff_path, ff)
-        face.set_ff_link(ff_path)
-        
-        return True
-    
     def run(self):
         while True:
             time.sleep(1)
-            self.check_new()
+            self.face_pool.check_and_save()

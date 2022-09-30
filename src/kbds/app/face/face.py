@@ -213,7 +213,8 @@ class DSFace(DSPipeline):
         self.queue4.link(self.filter)
         self.filter.link(self.queue5)
         self.queue5.link(self.sgie)
-        self.sgie.link(self.queue6) 
+        self.sgie.link(self.queue6)
+          
         self.queue6.link(self.tee)
         self.queue_msg.link(msgconv)
         msgconv.link(msgbroker)
@@ -304,9 +305,24 @@ class DSFaceProbe(DSFace):
                 except StopIteration:
                     break
                 
-                # print(obj_meta.object_id)
-                # print("confidence:", obj_meta.confidence)
-                drop_signal = False
+                
+                drop_signal = True
+                tmp_face_bbox = [obj_meta.rect_params.width, obj_meta.rect_params.height]
+
+                # if this face already exist as well as there still space for arcface to infer
+                # check its states and bbox info
+                if face_pool.id_exist(obj_meta.object_id) and face_pool.check_full() is False:
+                    tmp_face = face_pool.get_face_by_id(obj_meta.object_id)
+                    # this face has already sent a message
+                    if tmp_face.get_state() == constant.FaceState.State4:
+                        origin_bbox = tmp_face.get_bbox()
+                        if (tmp_face_bbox[0] - origin_bbox[0]) > 15 and (tmp_face_bbox[1] - origin_bbox[1]) > 15:
+                            print(origin_bbox, tmp_face_bbox)
+                            tmp_face.set_bbox(tmp_face_bbox)
+                            tmp_face.set_state(constant.FaceState.State1)
+                            face_pool.counter(op='up')
+                            drop_signal = False
+
                 if face_pool.id_exist(obj_meta.object_id) == False \
                     and tpool.id_exist(obj_meta.object_id) == False \
                     and face_pool.check_full() == False:
@@ -324,24 +340,18 @@ class DSFaceProbe(DSFace):
                     # convert the array into cv2 default color format
                     # frame_copy = cv2.cvtColor(frame_copy, cv2.COLOR_RGBA2BGRA)
                         
-                    # face.set_bbox(frame_copy)
+                    face.set_bbox(tmp_face_bbox)
+                    print("init with bbox = ", tmp_face_bbox)
                     face.set_state(state=constant.FaceState.State1)
                     face_pool.add(id=obj_meta.object_id, face=face)
                     print("add face-{} to pool".format(obj_meta.object_id))
                     face_pool.counter(op='up')
-                    # print("add face -", obj_meta.object_id, " to pool")
-                # elif(face_pool.id_exist(obj_meta.object_id)):
-                #     temp_face = face_pool.get_face_by_id(obj_meta.object_id)
-                #     if temp_face.get_state() == constant.FaceState.State2:
-                #         drop_signal = True
-                # elif(tpool.id_exist(obj_meta.object_id)):
-                #     drop_signal = True
-                else:
-                    drop_signal = True
+                    drop_signal = False
+
+          
                 try: 
                     l_obj=l_obj.next
                     if drop_signal is True:
-                        # print("drop obj {}".format(obj_meta.object_id))
                         pyds.nvds_remove_obj_meta_from_frame(frame_meta, obj_meta)
                     
                 except StopIteration:
@@ -399,7 +409,7 @@ class DSFaceProbe(DSFace):
                 if face_pool.id_exist(obj_meta.object_id):
                     temp_face = face_pool.get_face_by_id(obj_meta.object_id)
                     if temp_face.get_state() == constant.FaceState.State1:
-                        
+                        print("try to extract ff")
                         l_user_meta = obj_meta.obj_user_meta_list
                         while l_user_meta:
                             try:
@@ -471,30 +481,26 @@ class DSFaceProbe(DSFace):
                 break
             
             frame_number=frame_meta.frame_num
-            pool = face_pool.get_pool()
-            for i in pool.copy():
-                if pool[i].get_state() == constant.FaceState.State3:
-                    # print("send msg face-",i)
-                    image_link = pool[i].get_face_image_link()
-                    ff_link = pool[i].get_ff_link()
-                    name = pool[i].get_image_name()
-                    ts = pool[i].get_ts()
-                    sid = pool[i].get_source_id()
+            
+            ids = face_pool.get_ids_in_pool()
+            for id in ids:
+                tmp_face = face_pool.get_face_by_id(id=id)
+                if tmp_face.get_state() == constant.FaceState.State3:
+                    image_link, ff_link, name, ts, sid = face_pool.check_msg_status(id=id)
                     uid = srcm.get_id_by_idx(sid)
-                    
-                    face_pool.pop_face_by_id(i)
-                    tpool.add(i)
+                    # face_pool.pop_face_by_id(id)
+                    tpool.add(id)
                     msg_meta = pyds.alloc_nvds_event_msg_meta()
                     msg_meta.bbox.top = 0
                     msg_meta.bbox.left = 0
                     msg_meta.bbox.width = 0
                     msg_meta.bbox.height = 0
                     msg_meta.frameId = frame_number
-                    msg_meta.trackingId = long_to_uint64(i)
+                    msg_meta.trackingId = long_to_uint64(id)
                     msg_meta.confidence = 0
                     msg_meta = DSFaceMessage.generate_event_msg_meta(msg_meta, image_link, ff_link, uid, name, ts)
                     user_event_meta = pyds.nvds_acquire_user_meta_from_pool(batch_meta)
-                    
+                
                     if user_event_meta:
                         user_event_meta.user_meta_data = msg_meta
                         user_event_meta.base_meta.meta_type = pyds.NvDsMetaType.NVDS_EVENT_MSG_META
@@ -508,10 +514,44 @@ class DSFaceProbe(DSFace):
                     else:
                         print("Error in attaching event meta to buffer\n")
 
-            
+      
+            try:
+                l_frame=l_frame.next
+            except StopIteration:
+                break
                 
-   
+        return Gst.PadProbeReturn.OK	
+
+    def sgie_sink_pad_buffer_probe_2(pad,info,u_data):
+        """
+        Probe to extract facial feature from user-meta data. 
+        
+        Should be after arcface.
+        """
+        global face_pool
+        frame_number=0
+        gst_buffer = info.get_buffer()
+        if not gst_buffer:
+            print("Unable to get GstBuffer ")
+            return
+
+        # Retrieve batch metadata from the gst_buffer
+        # Note that pyds.gst_buffer_get_nvds_batch_meta() expects the
+        # C address of gst_buffer as input, which is obtained with hash(gst_buffer)
+        batch_meta = pyds.gst_buffer_get_nvds_batch_meta(hash(gst_buffer))    
+        l_frame = batch_meta.frame_meta_list
+        while l_frame is not None:
+            try:
+                # Note that l_frame.data needs a cast to pyds.NvDsFrameMeta
+                # The casting is done by pyds.glist_get_nvds_frame_meta()
+                # The casting also keeps ownership of the underlying memory
+                # in the C code, so the Python garbage collector will leave
+                # it alone.
+                frame_meta = pyds.NvDsFrameMeta.cast(l_frame.data)
+            except StopIteration:
+                break
             
+          
             try:
                 l_frame=l_frame.next
             except StopIteration:
