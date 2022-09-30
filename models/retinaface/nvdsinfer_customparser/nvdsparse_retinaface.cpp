@@ -101,10 +101,10 @@ void nms_and_adapt(std::vector<Detection>& det, std::vector<Detection>& res, flo
     // crop larger area for better alignment performance
     // there I choose to crop 50 more pixel
     for (unsigned int m = 0; m < res.size(); ++m) {
-        res[m].bbox[0] = CLIP(res[m].bbox[0] - 10, 0, width - 1);
-        res[m].bbox[1] = CLIP(res[m].bbox[1] - 10, 0, height -1);
-        res[m].bbox[2] = CLIP(res[m].bbox[2] + 20, 0, width - 1);
-        res[m].bbox[3] = CLIP(res[m].bbox[3] + 20, 0, height - 1);
+        res[m].bbox[0] = CLIP(res[m].bbox[0]-15, 0, width - 1);
+        res[m].bbox[1] = CLIP(res[m].bbox[1]-15, 0, height -1);
+        res[m].bbox[2] = CLIP(res[m].bbox[2]+30, 0, width - 1);
+        res[m].bbox[3] = CLIP(res[m].bbox[3]+30, 0, height - 1);
     }
 }
 
