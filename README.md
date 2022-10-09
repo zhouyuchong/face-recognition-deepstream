@@ -26,6 +26,7 @@ there should be a face alignment before arcface. Use a custom-gst-nvinfer to pre
 
 ## Usage
 ### 1 - compile retinaface parse function
+set a larger face detection bbox so that we can do alignment better later.
 ```
 cd models/retinaface
 make
@@ -33,6 +34,7 @@ make
 ### 2 - modify all path in config and codes
 + all path in src/config/face/
 + line 24 in src/kbds/app/face.py
++ video path in test script
 
 ### 3 - Start kafka service before everything. 
 Then set "ip;port;topic" in codes.
@@ -40,6 +42,7 @@ e.g.
 ```
 DSFace("localhost;9092;deepstream")
 ```
+you can recieve result messages on **deepstream** topic and error messages on **error** topic in same ip&port.
 ### 4 - start app
 ```
 cd test
