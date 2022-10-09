@@ -42,7 +42,8 @@ DSFace("localhost;9092;deepstream")
 ```
 ### 4 - start app
 ```
-python3 test/face_test_demo.py
+cd test
+python3 face_test_demo.py
 ```
 Notice that only support RTSP stream and Gstreamer format.
 

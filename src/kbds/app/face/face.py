@@ -317,7 +317,7 @@ class DSFaceProbe(DSFace):
                     if tmp_face.get_state() == constant.FaceState.State4:
                         origin_bbox = tmp_face.get_bbox()
                         if (tmp_face_bbox[0] - origin_bbox[0]) > 15 and (tmp_face_bbox[1] - origin_bbox[1]) > 15:
-                            print(origin_bbox, tmp_face_bbox)
+                            print("detect face-{} with higher resolution".format(obj_meta.object_id), origin_bbox, " -->", tmp_face_bbox)
                             tmp_face.set_bbox(tmp_face_bbox)
                             tmp_face.set_state(constant.FaceState.State1)
                             face_pool.counter(op='up')
@@ -341,10 +341,9 @@ class DSFaceProbe(DSFace):
                     # frame_copy = cv2.cvtColor(frame_copy, cv2.COLOR_RGBA2BGRA)
                         
                     face.set_bbox(tmp_face_bbox)
-                    print("init with bbox = ", tmp_face_bbox)
                     face.set_state(state=constant.FaceState.State1)
                     face_pool.add(id=obj_meta.object_id, face=face)
-                    print("add face-{} to pool".format(obj_meta.object_id))
+                    print("detect face-{} with resolution {}x{}".format(obj_meta.object_id, int(tmp_face_bbox[0]), int(tmp_face_bbox[1])))
                     face_pool.counter(op='up')
                     drop_signal = False
 
@@ -409,7 +408,6 @@ class DSFaceProbe(DSFace):
                 if face_pool.id_exist(obj_meta.object_id):
                     temp_face = face_pool.get_face_by_id(obj_meta.object_id)
                     if temp_face.get_state() == constant.FaceState.State1:
-                        print("try to extract ff")
                         l_user_meta = obj_meta.obj_user_meta_list
                         while l_user_meta:
                             try:
@@ -488,7 +486,7 @@ class DSFaceProbe(DSFace):
                 if tmp_face.get_state() == constant.FaceState.State3:
                     image_link, ff_link, name, ts, sid = face_pool.check_msg_status(id=id)
                     uid = srcm.get_id_by_idx(sid)
-                    # face_pool.pop_face_by_id(id)
+                    face_pool.pop_face_by_id(id)
                     tpool.add(id)
                     msg_meta = pyds.alloc_nvds_event_msg_meta()
                     msg_meta.bbox.top = 0

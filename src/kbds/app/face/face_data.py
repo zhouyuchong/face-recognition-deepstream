@@ -1,4 +1,3 @@
-from multiprocessing.connection import wait
 import os
 import threading
 import time
@@ -9,7 +8,6 @@ import cv2
 from requests import patch
 import kbds.util.constant as constant
 import kbds.util.picConv as convertor
-from kbds.util.fdfs_util.fdfs_util import FastDfsUtil
 
 
 MAX_FACE_IN_POOL = 40
@@ -97,7 +95,7 @@ class FacePool():
 
     def __init__(self):
         self.uninfered_face_num = 0
-        self.pool = dict()
+        self.pool = dict()        
 
     def add(self, id, face):
         self.pool[id] = face
@@ -129,7 +127,8 @@ class FacePool():
         return self.pool.pop(id)
 
     def get_ids_in_pool(self):
-        return self.pool.keys()
+        ids = self.pool.copy().keys()
+        return ids
 
     def check_msg_status(self, id):
         if self.pool[id].get_state() == constant.FaceState.State3:
@@ -137,46 +136,34 @@ class FacePool():
             return self.pool[id].get_face_image_link(), self.pool[id].get_ff_link(), self.pool[id].get_image_name(), self.pool[id].get_ts(), self.pool[id].get_source_id()
 
     def check_and_save(self):
-        for id, face in self.pool.items():
-            if face.get_state() == constant.FaceState.State2:
-                ret2 = self.save_face_to_local(id=id, face=face)
-                ret3 = self.save_face_feature_to_local(id=id, face=face)
+        tmp_pool = self.pool.copy()
+        for id in tmp_pool:
+            if tmp_pool[id].get_state() == constant.FaceState.State2:
+                ret2 = self.save_face_to_local(id=id, face=tmp_pool[id])
+                ret3 = self.save_face_feature_to_local(id=id, face=tmp_pool[id])
                 if ret2 and ret3:
-                    face.set_state(constant.FaceState.State3)
+                    self.pool[id].set_state(constant.FaceState.State3)
 
     def save_face_to_local(self, id, face):
         img_path = "images/origin/face-{}.png".format(id)
         if os.path.exists("images/origin/face-{}.png".format(id)):
-            # frame_copy = face.get_bbox()
-            # img_path = "save/face/{0}-{1}-{2}.jpg".format(id, face.get_source_id(), face.get_ts())
-            # cv2.imwrite(img_path, frame_copy)
             name = "face-{}.png".format(id)
             face.set_image_name(name)
-            # face.set_face_image_link(img_path)
-            save_fdfs = FastDfsUtil()      
-            ret = save_fdfs.upload_by_filename(img_path)
-            save_p = ret["Remote file_id"].decode('utf-8')
-            # save_p = "test"
-            # print(save_p)
-            face.set_face_image_link(save_p)          
+            print("face image save to :", img_path)
+            face.set_face_image_link(img_path)          
             return True
         else:
             return False
 
     def save_face_feature_to_local(self, id, face):   
-        # print("save feature {} to local.".format(id))
         ff = face.get_face_feature()
         ff_path = "images/face_feature/face-{0}-{1}.npy".format(id, face.get_ts())
         path = 'images/face_feature'
         if not os.path.exists(path):
             os.makedirs(path)
         np.save(ff_path, ff)
-
-        save_fdfs = FastDfsUtil()      
-        ret = save_fdfs.upload_by_filename(ff_path)
-        save_p = ret["Remote file_id"].decode('utf-8')
-        # save_p = "test"
-        face.set_ff_link(save_p)
+        print("face feature save to :", ff_path)
+        face.set_ff_link(ff_path)
         
         return True
 

@@ -11,6 +11,7 @@ class FaceState(Enum):
     State1 = 1
     State2 = 2
     State3 = 3
+    State4 = 4
 
 @unique
 class CarState(Enum):
