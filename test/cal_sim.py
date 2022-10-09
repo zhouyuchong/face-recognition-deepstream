@@ -1,11 +1,11 @@
-from importlib.resources import path
 import numpy as np
 import os
 
 def takeFirst(elem):
     return elem[0]
 
-check_face = np.load('./images/face_feature/face-0-1664442738.836995.npy')
+# your embbedings for comparison
+check_face = np.load('./images/face_feature/face-0-1665294479.2244995.npy')
 
 check_face = check_face.reshape(1, 512)
 face = []

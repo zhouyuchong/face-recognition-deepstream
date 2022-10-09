@@ -70,8 +70,8 @@ symmetric-padding=1
 classifier-async-mode=0
 operate-on-gie-id=1
 operate-on-class-ids=0
-input-object-min-width=122
-input-object-min-height=122
+input-object-min-width=80
+input-object-min-height=80
 
 alignment=1
 user-meta=1
