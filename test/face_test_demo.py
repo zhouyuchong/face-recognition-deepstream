@@ -15,14 +15,14 @@ id = 0
 while True:
     if id == 0:
         str_id = "task-{}".format(id)
-        src = Stream(str_id, "file:///media/pedestrian_London_Streets.mp4")
+        src = Stream(str_id, "file:///media/test.ts")
         print(app.add_src(src))
         time.sleep(1)
         app.play_src(str_id)
 
     if id == 5:
         str_id = "task-{}".format(id)
-        src = Stream(str_id, "file:///media/pedestrian_London_Streets.mp4")
+        src = Stream(str_id, "file:///media/test.ts")
         print(app.add_src(src))
         app.play_src(str_id)
 
@@ -34,7 +34,20 @@ while True:
     if id == 15:
         print("======== delete src test =======")
         app.del_src(id="task-0")
+
+    if id == 20:
+        print("======== delete src test =======")
+        app.del_src(id="task-5")
         
+    if id == 25:
+        str_id = "task-{}".format(5)
+        src = Stream(str_id, "file:///media/test.ts")
+        print(app.add_src(src))
+        app.play_src(str_id)
+
+    if id == 30:
+        print("======== delete src test =======")
+        app.del_src(id="task-5")
     time.sleep(1)
     id = id + 1
    

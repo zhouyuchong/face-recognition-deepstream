@@ -12,6 +12,7 @@ from telnetlib import PRAGMA_HEARTBEAT
 from threading import RLock, Thread
 from kafka import KafkaProducer
 import json
+import time
 import gi
 
 gi.require_version('Gst', '1.0')
@@ -116,23 +117,28 @@ class DSPipeline(Singleton, abc.ABC):
             print("Warning: %s: %s\n" % (err, debug))
         elif t == Gst.MessageType.ERROR:
             err, debug = message.parse_error()
-            print(err)
             struct = str(message.get_structure())
             search_index = re.search("source-bin-[0-9]{0,1}/", struct)
             search_index = search_index[0].split('-')[2][:-1]
             err_id = self.srcm.get_id_by_idx(int(search_index))
-            
-            self.del_src(id=err_id)
-
-            msg = {"id": str(err_id), "message":str(err)}
-            msg = json.dumps(msg).encode('utf-8')
-            self.producer.send('error', msg)
-            if str(err).startswith("gst-resource-error-quark"):
-                # resource errors from 1 to 16
-                if str(err).endswith("(9)"):
-                    # handle_read_error()
-                    print(err)
-                    # print("Error: %s: %s\n" % (err, debug))
+            try:
+                self.del_src(id=err_id)
+                print("id: {},  error: {}, delete.".format(err_id, err))
+                time_local = time.localtime(int(time.time()))
+                dt = time.strftime("%Y-%m-%d %H:%M:%S",time_local)
+                msg = {"time": dt, "id": str(err_id), "message":str(err)}
+                msg = json.dumps(msg).encode('utf-8')
+                
+                if str(err).startswith("gst-resource-error-quark"):
+                    # resource errors from 1 to 16
+                    if str(err).endswith("(9)"):
+                        # handle_read_error()
+                        print(err)
+                        # print("Error: %s: %s\n" % (err, debug))
+                    else:
+                        self.producer.send('error', msg)
+            except Exception:
+                print("id: {} encounters error: {}, delete.".format(err_id, err))
         elif t == Gst.MessageType.ELEMENT:
             struct = message.get_structure()
             #Check for stream-eos message
@@ -310,10 +316,7 @@ class DSPipeline(Singleton, abc.ABC):
         :return: (bool, str, Source), result & message & deleted source
         """
         # print("total:", self.srcm.total)
-        if self.srcm.total == 1:
-            self.streammux.set_state(Gst.State.NULL)
-            state_return = self.pipeline.set_state(Gst.State.NULL)
-            self.is_first_src = True
+        
 
             # print(state_return)
 
@@ -321,6 +324,11 @@ class DSPipeline(Singleton, abc.ABC):
         ret, msg, src = self.srcm.get(id)
         if not ret:
             return ret, msg, None
+        
+        if self.srcm.total == 1:
+            self.streammux.set_state(Gst.State.NULL)
+            state_return = self.pipeline.set_state(Gst.State.NULL)
+            self.is_first_src = True
 
         source_bin = src.rt_ctx['bin']
         state_return = source_bin.set_state(Gst.State.NULL)
