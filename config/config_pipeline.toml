@@ -17,7 +17,7 @@ display-text=1
 
 [source]
 source0="file:///opt/nvidia/deepstream/deepstream-6.3/sources/face-recognition-deepstream/data/media/friends_s1e1_cut.mp4"
-#source1="file:///opt/nvidia/deepstream/deepstream-6.3/sources/face-recognition-deepstream/data/media/children_running.mp4"
+#source1="file:///opt/nvidia/deepstream/deepstream-6.3/sources/face-recognition-deepstream/data/media/friends_s1e1_cut.mp4"
 
 [pgie]
 config-file-path="config/config_retinaface.txt"

@@ -3,7 +3,7 @@
  * @Date: 2024-08-19 14:13:02
  * @Description: 
  * @LastEditors: zhouyuchong
- * @LastEditTime: 2024-08-20 13:40:58
+ * @LastEditTime: 2024-08-20 14:06:19
 -->
 # Face recognition with Deepstream
 This is a face detection and recognition demo pipeline build on Deepstream.
@@ -15,6 +15,7 @@ This is a face detection and recognition demo pipeline build on Deepstream.
 + NVIDIA driver 470.63.01+
 + TensorRT 8+
 + Python 3.6+
++ Opencv
 
 Follow [deepstream](https://docs.nvidia.com/metropolis/deepstream/dev-guide/text/DS_Quickstart.html#dgpu-setup-for-ubuntu) official doc to install dependencies.
 
