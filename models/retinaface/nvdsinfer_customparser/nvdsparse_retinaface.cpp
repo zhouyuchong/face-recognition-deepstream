@@ -30,9 +30,35 @@
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 #define CLIP(a, min, max) (MAX(MIN(a, max), min))
-#define CONF_THRESH 0.1
-#define VIS_THRESH 0.75
-#define NMS_THRESH 0.4
+// #define CONF_THRESH 0.1
+// #define VIS_THRESH 0.75
+// #define NMS_THRESH 0.4
+#define NUM_LANDMARK 10
+
+static constexpr int LOCATIONS = 4;
+static constexpr int ANCHORS = 10;
+
+struct Bbox {
+    int x1, y1, x2, y2;
+    float score;
+};
+struct anchorBox {
+    float cx;
+    float cy;
+    float sx;
+    float sy;
+};
+struct alignas(int) landmarks {
+    int x[5];
+    int y[5];
+};
+struct alignas(float) Detection{
+    float bbox[LOCATIONS];
+    float score;
+    float anchor[ANCHORS];
+};
+
+
 
 extern "C" bool NvDsInferParseCustomRetinaface(
     std::vector<NvDsInferLayerInfo> const &outputLayersInfo,
@@ -40,71 +66,127 @@ extern "C" bool NvDsInferParseCustomRetinaface(
     NvDsInferParseDetectionParams const &detectionParams,
     std::vector<NvDsInferObjectDetectionInfo> &objectList);
 
-static constexpr int LOCATIONS = 4;
-static constexpr int ANCHORS = 10;
+void postprocessing(float *bbox, float *conf, float bbox_threshold, float nms_threshold, unsigned int topk, int width,
+                    int height, std::vector<NvDsInferObjectDetectionInfo> &objectList);
+void create_anchor_retinaface(std::vector<anchorBox> &anchor, int w, int h);
+bool cmp(NvDsInferObjectDetectionInfo a, NvDsInferObjectDetectionInfo b);
+void nms(std::vector<NvDsInferObjectDetectionInfo> &input_boxes, float NMS_THRESH);
 
-struct alignas(float) Detection{
-    float bbox[LOCATIONS];
-    float score;
-    float anchor[ANCHORS];
-};
 
-void create_anchor_retinaface(std::vector<Detection>& res, float *output, float conf_thresh, int width, int height) {
-    int det_size = sizeof(Detection) / sizeof(float);
-    for (int i = 0; i < output[0]; i++){
-        if (output[1 + det_size * i + 4] <= conf_thresh) continue;
-        
-        Detection det;
-        memcpy(&det, &output[1 + det_size * i], det_size * sizeof(float));
-        det.bbox[0] = CLIP(det.bbox[0], 0, width - 1);
-        det.bbox[1] = CLIP(det.bbox[1] , 0, height -1);
-        det.bbox[2] = CLIP(det.bbox[2], 0, width - 1);
-        det.bbox[3] = CLIP(det.bbox[3], 0, height - 1);
-        
-        res.push_back(det);
-        
+void postprocessing(float *bbox, float *lmks, float *conf, float bbox_threshold, float nms_threshold, unsigned int topk, int width,
+                    int height, std::vector<NvDsInferObjectDetectionInfo> &objectList) {
+    std::vector<anchorBox> anchor;
+    create_anchor_retinaface(anchor, width, height);
+
+    for (unsigned int i = 0; i < anchor.size(); ++i) {
+        if (*(conf + 1) > bbox_threshold) {
+            anchorBox tmp = anchor[i];
+            anchorBox tmp1;
+            NvDsInferObjectDetectionInfo result;
+            result.classId = 0;
+
+            // decode bbox
+            tmp1.cx = tmp.cx + *bbox * 0.1 * tmp.sx;
+            tmp1.cy = tmp.cy + *(bbox + 1) * 0.1 * tmp.sy;
+            tmp1.sx = tmp.sx * exp(*(bbox + 2) * 0.2);
+            tmp1.sy = tmp.sy * exp(*(bbox + 3) * 0.2);
+
+            for (unsigned int i2=0; i2 < 5; i2++) {
+                result.landmark[i2*2] = lround((tmp.cx + *(lmks + i2*2) * 0.1 * tmp.sx) * width);
+                result.landmark[i2*2 + 1] = lround((tmp.cy + *(lmks + i2*2 + 1) * 0.1 * tmp.sy) * height);
+            }
+
+            result.left = (tmp1.cx - tmp1.sx / 2) * width;
+            result.top = (tmp1.cy - tmp1.sy / 2) * height;
+            result.width = (tmp1.cx + tmp1.sx / 2) * width - result.left;
+            result.height = (tmp1.cy + tmp1.sy / 2) * height - result.top;
+
+            // Clip object box coordinates to network resolution
+            result.left = CLIP(result.left, 0, width - 1);
+            result.top = CLIP(result.top, 0, height - 1);
+            result.width = CLIP(result.width, 0, width - 1);
+            result.height = CLIP(result.height, 0, height - 1);
+
+
+            result.detectionConfidence = *(conf + 1);
+
+            result.numLmks = NUM_LANDMARK;
+  
+            objectList.push_back(result);
+            // printf("bbox: %f %f %f %f conf: %f\n", result.left, result.top, result.width, result.height, result.detectionConfidence);
+        }
+        bbox += 4;
+        lmks += 10;
+        conf += 2;
     }
+    std::sort(objectList.begin(), objectList.end(), cmp);
+    nms(objectList, nms_threshold);
+    if (objectList.size() > topk)
+        objectList.resize(topk);
 }
 
-bool cmp(Detection& a, Detection& b) {
-    return a.score > b.score;
-}
+void create_anchor_retinaface(std::vector<anchorBox> &anchor, int w, int h) {
+    anchor.clear();
+    std::vector<std::vector<int>> feature_map(3), min_sizes(3);
+    float steps[] = {8, 16, 32};
+    for (unsigned int i = 0; i < feature_map.size(); ++i) {
+        feature_map[i].push_back(ceil(h / steps[i]));
+        feature_map[i].push_back(ceil(w / steps[i]));
+    }
+    std::vector<int> minsize1 = {16, 32};
+    min_sizes[0] = minsize1;
+    std::vector<int> minsize2 = {64, 128};
+    min_sizes[1] = minsize2;
+    std::vector<int> minsize3 = {256, 512};
+    min_sizes[2] = minsize3;
 
-
-float iou(float lbox[4], float rbox[4]) {
-    float interBox[] = {
-        std::max(lbox[0] - lbox[2]/2.f , rbox[0] - rbox[2]/2.f), //left
-        std::min(lbox[0] + lbox[2]/2.f , rbox[0] + rbox[2]/2.f), //right
-        std::max(lbox[1] - lbox[3]/2.f , rbox[1] - rbox[3]/2.f), //top
-        std::min(lbox[1] + lbox[3]/2.f , rbox[1] + rbox[3]/2.f), //bottom
-    };
-
-    if(interBox[2] > interBox[3] || interBox[0] > interBox[1])
-        return 0.0f;
-
-    float interBoxS =(interBox[1]-interBox[0])*(interBox[3]-interBox[2]);
-    return interBoxS/(lbox[2]*lbox[3] + rbox[2]*rbox[3] -interBoxS);
-}
-
-void nms_and_adapt(std::vector<Detection>& det, std::vector<Detection>& res, float nms_thresh, int width, int height) {
-    std::sort(det.begin(), det.end(), cmp);
-    for (unsigned int m = 0; m < det.size(); ++m) {
-        auto& item = det[m];
-        res.push_back(item);
-        for (unsigned int n = m + 1; n < det.size(); ++n) {
-            if (iou(item.bbox, det[n].bbox) > nms_thresh) {
-                det.erase(det.begin()+n);
-                --n;
+    for (unsigned int k = 0; k < feature_map.size(); ++k) {
+        std::vector<int> min_size = min_sizes[k];
+        for (int i = 0; i < feature_map[k][0]; ++i) {
+            for (int j = 0; j < feature_map[k][1]; ++j) {
+                for (unsigned int l = 0; l < min_size.size(); ++l) {
+                    float s_kx = min_size[l] * 1.0 / w;
+                    float s_ky = min_size[l] * 1.0 / h;
+                    float cx = (j + 0.5) * steps[k] / w;
+                    float cy = (i + 0.5) * steps[k] / h;
+                    anchorBox axil = {cx, cy, s_kx, s_ky};
+                    anchor.push_back(axil);
+                }
             }
         }
     }
-    // crop larger area for better alignment performance
-    // there I choose to crop 20 more pixel
-    for (unsigned int m = 0; m < res.size(); ++m) {
-        res[m].bbox[0] = CLIP(res[m].bbox[0]-10, 0, width - 1);
-        res[m].bbox[1] = CLIP(res[m].bbox[1]-10, 0, height -1);
-        res[m].bbox[2] = CLIP(res[m].bbox[2]+20, 0, width - 1);
-        res[m].bbox[3] = CLIP(res[m].bbox[3]+20, 0, height - 1);
+}
+
+bool cmp(NvDsInferObjectDetectionInfo a, NvDsInferObjectDetectionInfo b) {
+    if (a.detectionConfidence > b.detectionConfidence)
+        return true;
+    return false;
+}
+
+void nms(std::vector<NvDsInferObjectDetectionInfo> &input_boxes, float NMS_THRESH) {
+    std::vector<float> vArea(input_boxes.size());
+    for (int i = 0; i < int(input_boxes.size()); ++i) {
+        vArea[i] = (input_boxes.at(i).width + 1) * (input_boxes.at(i).height + 1);
+    }
+    for (int i = 0; i < int(input_boxes.size()); ++i) {
+        for (int j = i + 1; j < int(input_boxes.size());) {
+            float xx1 = std::max(input_boxes[i].left, input_boxes[j].left);
+            float yy1 = std::max(input_boxes[i].top, input_boxes[j].top);
+            float xx2 =
+                std::min(input_boxes[i].left + input_boxes[i].width, input_boxes[j].left + input_boxes[j].width);
+            float yy2 =
+                std::min(input_boxes[i].top + input_boxes[i].height, input_boxes[j].top + input_boxes[j].height);
+            float w = std::max(float(0), xx2 - xx1 + 1);
+            float h = std::max(float(0), yy2 - yy1 + 1);
+            float inter = w * h;
+            float ovr = inter / (vArea[i] + vArea[j] - inter);
+            if (ovr >= NMS_THRESH) {
+                input_boxes.erase(input_boxes.begin() + j);
+                vArea.erase(vArea.begin() + j);
+            } else {
+                j++;
+            }
+        }
     }
 }
 
@@ -114,27 +196,40 @@ static bool NvDsInferParseRetinaface(std::vector<NvDsInferLayerInfo> const &outp
                                     NvDsInferParseDetectionParams const &detectionParams,
                                     std::vector<NvDsInferObjectDetectionInfo> &objectList) {
     
-  
-    float *output = (float*)(outputLayersInfo[0].buffer);
-    std::vector<Detection> temp;
-    std::vector<Detection> res;
-    create_anchor_retinaface(temp, output, CONF_THRESH, networkInfo.width, networkInfo.height);
-    nms_and_adapt(temp, res, NMS_THRESH, networkInfo.width, networkInfo.height);
-
-    for(auto& r : res) {
-        
-        if(r.score<=VIS_THRESH) continue;
-
-	    NvDsInferParseObjectInfo oinfo;  
-	    oinfo.classId = 0;
-	    oinfo.left    = static_cast<unsigned int>(r.bbox[0]);
-	    oinfo.top     = static_cast<unsigned int>(r.bbox[1]);
-	    oinfo.width   = static_cast<unsigned int>(r.bbox[2]-r.bbox[0]);
-	    oinfo.height  = static_cast<unsigned int>(r.bbox[3]-r.bbox[1]);
-	    oinfo.detectionConfidence = r.score;
-        objectList.push_back(oinfo);
-             
+    static int bboxLayerIndex = -1;
+    static int confLayerIndex = -1;
+    static int lmkLayerIndex = -1;
+    for (unsigned int i = 0; i < outputLayersInfo.size(); i++) {
+        if (strcmp(outputLayersInfo[i].layerName, "bbox") == 0) {
+            bboxLayerIndex = i;
+        } else if (strcmp(outputLayersInfo[i].layerName, "conf") == 0) {
+            confLayerIndex = i;
+        } else if (strcmp(outputLayersInfo[i].layerName, "lmk") == 0) {
+            lmkLayerIndex = i;
+        }
     }
+    if ((bboxLayerIndex == -1) || (confLayerIndex == -1) || (lmkLayerIndex == -1)) {
+        std::cerr << "Could not find output layer buffer while parsing" << std::endl;
+        return false;
+    }
+
+    // Host memory for "decode"
+    float *bbox = (float *)outputLayersInfo[bboxLayerIndex].buffer;
+    float *conf = (float *)outputLayersInfo[confLayerIndex].buffer;
+    float *lmk = (float *)outputLayersInfo[lmkLayerIndex].buffer;
+
+    // printf("len of bbox: %d, len of conf: %d, len of lmk: %d\n", outputLayersInfo[bboxLayerIndex].inferDims.d[1], outputLayersInfo[confLayerIndex].inferDims.d[1], outputLayersInfo[lmkLayerIndex].inferDims.d[1]);
+
+    // Get thresholds and topk value
+    // const float bbox_threshold = detectionParams.perClassPreclusterThreshold[0];
+    // const float nms_threshold = detectionParams.perClassPostclusterThreshold[0];
+    // const unsigned int topk = detectionParams.numClassesConfigured;
+    const float bbox_threshold = 0.25;
+    const float nms_threshold = 0.1;
+    const unsigned int topk = 100;
+
+    // Do post processing
+    postprocessing(bbox, lmk, conf, bbox_threshold, nms_threshold, topk, networkInfo.width, networkInfo.height, objectList);
     return true;
 }
 

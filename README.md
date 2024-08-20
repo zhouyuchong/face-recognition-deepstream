@@ -1,5 +1,12 @@
-# Face recognition with Deepstream 6.1
-This is a face detection and recognition app build on Deepstream.
+<!--
+ * @Author: zhouyuchong
+ * @Date: 2024-08-19 14:13:02
+ * @Description: 
+ * @LastEditors: zhouyuchong
+ * @LastEditTime: 2024-08-20 13:40:58
+-->
+# Face recognition with Deepstream
+This is a face detection and recognition demo pipeline build on Deepstream.
 
 ## Requirements
 + Deepstream 6.0+
@@ -16,52 +23,23 @@ Deepstream docker is more recommended.
 ## Pretrained
 Please refer to links below for pretrained models and serialized TensorRT engine. Or download from [Google driver](https://drive.google.com/drive/folders/1HTdIhGrKP7JnKY6n8F95mI7SBnx7-4R3).
 + ~~[yolov5](https://github.com/wang-xinyu/tensorrtx/tree/master/yolov5)~~
-+ [retinaface](https://github.com/wang-xinyu/tensorrtx/tree/master/retinaface)
++ ~~[retinaface](https://github.com/wang-xinyu/tensorrtx/tree/master/retinaface)~~
++ [retinaface](https://github.com/biubug6/Pytorch_Retinaface)
 + [arcface](https://github.com/wang-xinyu/tensorrtx/tree/master/arcface)
 
 ## Alignment
-there should be a face alignment before arcface. Use a custom-gst-nvinfer to preprocess the tensor-meta of retinaface. 
+there should be a face alignment before arcface. Use a `gst-nvinfer-custom` to preprocess the tensor-meta of retinaface. 
 
 [Demo custom-gst-nvinfer](https://github.com/zhouyuchong/gst-nvinfer-custom)
 
 ## Usage
-### 1 - compile retinaface parse function
-set a larger face detection bbox so that we can do alignment better later.
-```
-cd models/retinaface
-make
-```
-### 2 - modify all path in config and codes
-+ all path in src/config/face/
-+ line 24 in src/kbds/app/face.py
-+ video path in test script
-
-### 3 - Start kafka service before everything. 
-Then set "ip;port;topic" in codes.
-e.g.
-```
-DSFace("localhost;9092;deepstream")
-```
-you can recieve result messages on **deepstream** topic and error messages on **error** topic in same ip&port.
-### 4 - start app
-```
-cd test
-python3 face_test_demo.py
-```
-Notice that only support RTSP stream and Gstreamer format.
-
-### 5 - check result
-images before and after alignment will be stored in images.
-
-
-modify codes in test/cal_sim.py. replace with your own face-feature npy file.
-```
-python3 test/cal_sim.py
-```
-it will outputs all score.
-
+### 1 - put the feature file to data/known_faces
+### 2 - compile `gst-nvinfer-custom` if do alignment, care that the post-process should also be modified if use `gst-nvinfer-custom`
+### 3 - modify config file under `config` folder
+### 4 - run `python3 main.py`
 
 ## References
 + [wang-xinyu/tensorrtx](https://github.com/wang-xinyu/tensorrtx)
 + [NVIDIA-AI-IOT/deepstream_python_apps](https://github.com/NVIDIA-AI-IOT/deepstream_python_apps)
++ [biubug6/Pytorch_Retinaface](https://github.com/biubug6/Pytorch_Retinaface)
 
