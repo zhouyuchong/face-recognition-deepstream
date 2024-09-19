@@ -3,7 +3,7 @@ Author: zhouyuchong
 Date: 2024-08-19 14:35:17
 Description: 
 LastEditors: zhouyuchong
-LastEditTime: 2024-08-20 15:05:51
+LastEditTime: 2024-09-19 14:36:41
 '''
 import os
 import numpy as np
@@ -43,7 +43,7 @@ def pgie_src_filter_probe(pad,info,u_data):
                 break
             
             drop_signal = True
-            if obj_meta.confidence > 0.8:
+            if obj_meta.confidence > 0.6:
                 drop_signal = False
 
             try: 
@@ -95,7 +95,7 @@ def sgie_feature_extract_probe(pad,info, data):
                 for key, value in loaded_faces.items():
                     score = np.dot(face_feature, value)[0]
                     print(f"frame-{frame_number}, face-{obj_meta.object_id} x {key} score: {score}")
-                    if score > 0.4:
+                    if score > 0.3:
                         display_meta=pyds.nvds_acquire_display_meta_from_pool(batch_meta)
                         display_meta.num_labels = 1
                         py_nvosd_text_params = display_meta.text_params[0]
