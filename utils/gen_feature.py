@@ -3,7 +3,7 @@ Author: zhouyuchong
 Date: 2024-09-13 13:44:16
 Description: 
 LastEditors: zhouyuchong
-LastEditTime: 2024-09-14 10:58:19
+LastEditTime: 2024-09-19 14:16:43
 '''
 import os
 import math
@@ -149,7 +149,7 @@ def preprocess(input_path, netshape):
     return image, raw_image
 
 if __name__ == "__main__":
-    model = TensorRTInfer("./models/arcface/arcface-r50.engine", mode='min')
+    model = TensorRTInfer("./models/arcface/arcface.engine", mode='min')
     spec = model.input_spec()
     path = "data/known_faces"
     faces = os.listdir(path)

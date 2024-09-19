@@ -20,7 +20,8 @@ source0="file:///opt/nvidia/deepstream/deepstream-6.3/sources/face-recognition-d
 #source1="file:///opt/nvidia/deepstream/deepstream-6.3/sources/face-recognition-deepstream/data/media/friends_s1e1_whole.mp4"
 
 [pgie]
-config-file-path="config/config_retinaface.txt"
+#config-file-path="config/config_retinaface.txt"
+config-file-path="config/config_yolov8n_face.txt"
 
 [sgie]
 config-file-path="config/config_arcface.txt"

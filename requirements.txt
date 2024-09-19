@@ -1,4 +1,4 @@
-numpy
+numpy==1.19.5
 toml
 opencv-python
 tensorrt==8.5.3.1

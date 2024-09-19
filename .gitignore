@@ -1,10 +1,10 @@
 images/*
-/yolo_0
-*.png
 *.pyc
 __pycache__
 *.jpg
-*.png
 *.engine
+*.trt
 *.so
 .vscode/
+*.o
+*.onnx

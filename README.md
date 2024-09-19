@@ -3,7 +3,7 @@
  * @Date: 2024-08-19 14:13:02
  * @Description: 
  * @LastEditors: zhouyuchong
- * @LastEditTime: 2024-08-20 14:06:19
+ * @LastEditTime: 2024-09-19 14:27:00
 -->
 # Face recognition with Deepstream
 This is a face detection and recognition demo pipeline build on Deepstream.
@@ -21,26 +21,30 @@ Follow [deepstream](https://docs.nvidia.com/metropolis/deepstream/dev-guide/text
 
 Deepstream docker is more recommended.
 
-## Pretrained
-Please refer to links below for pretrained models and serialized TensorRT engine. Or download from [Google driver](https://drive.google.com/drive/folders/1HTdIhGrKP7JnKY6n8F95mI7SBnx7-4R3).
-+ ~~[yolov5](https://github.com/wang-xinyu/tensorrtx/tree/master/yolov5)~~
-+ ~~[retinaface](https://github.com/wang-xinyu/tensorrtx/tree/master/retinaface)~~
+## Models
++ [yolov8-face](https://github.com/derronqi/yolov8-face)
 + [retinaface](https://github.com/biubug6/Pytorch_Retinaface)
-+ [arcface](https://github.com/wang-xinyu/tensorrtx/tree/master/arcface)
++ [arcface](https://github.com/deepinsight/insightface/releases/tag/v0.7)
 
 ## Alignment
-there should be a face alignment before arcface. Use a `gst-nvinfer-custom` to preprocess the tensor-meta of retinaface. 
 
-[Demo custom-gst-nvinfer](https://github.com/zhouyuchong/gst-nvinfer-custom)
+[gst-nvinfer-custom](https://github.com/zhouyuchong/gst-nvinfer-custom)
 
 ## Usage
-### 1 - put the feature file to data/known_faces
-### 2 - compile `gst-nvinfer-custom` if do alignment, care that the post-process should also be modified if use `gst-nvinfer-custom`
-### 3 - modify config file under `config` folder
-### 4 - run `python3 main.py`
+### 1 - prepare data
++ put the feature file(.npy format) to `data/known_faces`
++ or put face images to `data/unknown_faces` and run `python3 utils/gen_feature.py`
+### 2 - compile 
++ `gst-nvinfer-custom` : follow [README](https://github.com/zhouyuchong/gst-nvinfer-custom)
++ `nvdsinfer_customparser` for detector post-process
+### 3 - run 
+```
+python3 main.py
+```
 
 ## References
-+ [wang-xinyu/tensorrtx](https://github.com/wang-xinyu/tensorrtx)
 + [NVIDIA-AI-IOT/deepstream_python_apps](https://github.com/NVIDIA-AI-IOT/deepstream_python_apps)
 + [biubug6/Pytorch_Retinaface](https://github.com/biubug6/Pytorch_Retinaface)
++ [yolov8-face](https://github.com/derronqi/yolov8-face)
++ [arcface](https://github.com/deepinsight/insightface)
 
