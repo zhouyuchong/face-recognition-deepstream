@@ -1,3 +1,5 @@
 numpy
 toml
 opencv-python
+tensorrt==8.5.3.1
+cuda-python==12.1.0
